@@ -11,6 +11,7 @@
 #include <FS.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include <ESP8266WiFi.h>
 
 WebApi::WebApi(ConfigStore *config, IORegistry *ioReg, Dmm *dmm,
                FuncGen *funcGen, Logger *logger,
@@ -54,8 +55,14 @@ void WebApi::begin() {
         handleWriteQueue();
       });
 
+  m_server.on(
+      "/api/wifi/scan", HTTP_GET,
+      [this]() {
+        handleWifiScan();
+      });
+
   // Endpoint for login. Expects a JSON body { "pin": "1234" }
-  // and compares it to the PIN stored in general.json. See
+  // and compares it to the PIN stored in network.json. See
   // handleLogin() for details.
   m_server.on(
       "/api/login", HTTP_POST,
@@ -218,6 +225,51 @@ void WebApi::handleWriteQueue() {
   m_server.send(200, "application/json", resp);
 }
 
+void WebApi::handleWifiScan() {
+  int16_t count = WiFi.scanNetworks(/*async=*/false, /*hidden=*/true);
+  if (count < 0) {
+    m_server.send(500, "application/json",
+                  "{\"error\":\"scan failed\"}");
+    return;
+  }
+
+  DynamicJsonDocument doc(4096);
+  JsonArray arr = doc.to<JsonArray>();
+  for (int16_t i = 0; i < count; ++i) {
+    JsonObject obj = arr.createNestedObject();
+    obj["ssid"] = WiFi.SSID(i);
+    obj["rssi"] = WiFi.RSSI(i);
+    obj["channel"] = WiFi.channel(i);
+    obj["hidden"] = WiFi.isHidden(i);
+    auto enc = WiFi.encryptionType(i);
+    obj["secure"] = enc != ENC_TYPE_NONE;
+    switch (enc) {
+    case ENC_TYPE_WEP:
+      obj["encryption"] = "WEP";
+      break;
+    case ENC_TYPE_TKIP:
+      obj["encryption"] = "WPA/TKIP";
+      break;
+    case ENC_TYPE_CCMP:
+      obj["encryption"] = "WPA2/CCMP";
+      break;
+    case ENC_TYPE_AUTO:
+      obj["encryption"] = "AUTO";
+      break;
+    case ENC_TYPE_NONE:
+      obj["encryption"] = "open";
+      break;
+    default:
+      obj["encryption"] = "unknown";
+      break;
+    }
+  }
+  WiFi.scanDelete();
+  String out;
+  serializeJson(arr, out);
+  m_server.send(200, "application/json", out);
+}
+
 void WebApi::handleLogin() {
   // Expect a JSON body with a "pin" field
   String body = m_server.arg("plain");
@@ -240,17 +292,33 @@ void WebApi::handleLogin() {
                   "{\"error\":\"missing pin\"}");
     return;
   }
-  // Load stored PIN from general config. If missing, treat as no PIN.
-  JsonDocument &gdoc = m_config->getConfig("general");
-  String storedPin = gdoc["pin"].as<String>();
-  if (storedPin.length() == 0) {
-    // If no pin is configured, accept any value and set in config.
-    storedPin = pinValue;
-    gdoc["pin"] = storedPin;
-    // Persist via file service if available
+  String providedPin(pinValue);
+  providedPin.trim();
+  String cleanedProvided;
+  for (size_t i = 0; i < providedPin.length(); ++i) {
+    char c = providedPin[i];
+    if (c >= '0' && c <= '9') cleanedProvided += c;
+  }
+  if (cleanedProvided.length() != 4) {
+    m_server.send(400, "application/json",
+                  "{\"error\":\"pin must be 4 digits\"}");
+    return;
+  }
+  // Load stored PIN from network config. If missing, treat as no PIN.
+  JsonDocument &ndoc = m_config->getConfig("network");
+  String storedPin = ndoc["login_pin"].as<String>();
+  String cleanedStored;
+  for (size_t i = 0; i < storedPin.length(); ++i) {
+    char c = storedPin[i];
+    if (c >= '0' && c <= '9') cleanedStored += c;
+  }
+  if (cleanedStored.length() != 4) {
+    // If no valid pin is configured, accept the provided one and persist it.
+    storedPin = cleanedProvided;
+    ndoc["login_pin"] = storedPin;
     String out;
-    serializeJson(gdoc, out);
-    String filename = "/general.json";
+    serializeJson(ndoc, out);
+    String filename = "/network.json";
     if (m_fileService) {
       m_fileService->enqueue(filename, out);
     } else {
@@ -270,7 +338,8 @@ void WebApi::handleLogin() {
     m_server.send(200, "application/json", s);
     return;
   }
-  bool match = (String(pinValue) == storedPin);
+  storedPin = cleanedStored;
+  bool match = (cleanedProvided == storedPin);
   StaticJsonDocument<64> resp;
   resp["ok"] = match;
   if (!match) {

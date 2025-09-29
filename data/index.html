@@ -33,8 +33,8 @@
     <div style="background:#0f172a; border:1px solid #243047; border-radius:12px; padding:16px; width:320px; color:#e5e7eb;">
       <h3 style="margin:0 0 8px 0;">Connexion</h3>
       <p style="margin:0 0 10px 0; color:#94a3b8;">Entrez le code PIN de session.</p>
-      <input id="pin-input" type="password" maxlength="6"
-            style="width:100%; padding:8px; border-radius:8px; border:1px solid #334155; background:#0c121b; color:#e5e7eb">
+      <input id="pin-input" type="password" inputmode="numeric" pattern="\\d{4}" maxlength="4"
+            style="width:100%; padding:8px; border-radius:8px; border:1px solid #334155; background:#0c121b; color:#e5e7eb" placeholder="1234">
       <div id="login-error" style="margin-top:8px; min-height:18px; color:#fca5a5;"></div>
       <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end;">
         <button id="login-cancel" type="button"
@@ -65,7 +65,11 @@
 
   async function doLogin() {
     let pin = (input.value||'').trim();
-    while(pin.length < 4) pin = '0' + pin;  // padding 4 digits
+    pin = pin.replace(/\D/g, '');
+    if (pin.length !== 4) {
+      errorEl.textContent = 'Le code PIN doit contenir exactement 4 chiffres.';
+      return;
+    }
     errorEl.textContent = '';
 
     // ENVOI JSON + lecture UNE fois

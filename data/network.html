@@ -130,6 +130,11 @@
         Masque de sous-réseau
         <input type="text" name="netmask" placeholder="ex : 255.255.255.0">
       </label>
+      <label>
+        Code PIN (4 chiffres)
+        <input type="password" name="login_pin" inputmode="numeric" pattern="\\d{4}" maxlength="4" autocomplete="off" placeholder="1234">
+      </label>
+      <p class="help">Ce code sécurise l’accès au tableau de bord web. Il doit comporter exactement 4 chiffres.</p>
       <p class="help">Laissez les champs vides pour obtenir une configuration dynamique via DHCP.</p>
     </fieldset>
 
@@ -175,6 +180,7 @@
       form.elements['ip'].value = cfg.ip || '';
       form.elements['gateway'].value = cfg.gateway || '';
       form.elements['netmask'].value = cfg.netmask || '';
+      form.elements['login_pin'].value = cfg.login_pin || '';
       document.getElementById('sta-hidden').checked = !!cfg.sta_hidden;
       toggleSections(mode);
       setStatus('Configuration chargée.');
@@ -187,6 +193,12 @@
   async function saveNetworkConfig(event) {
     event.preventDefault();
     const form = document.getElementById('net-form');
+    const pinRaw = (form.elements['login_pin'].value || '').trim();
+    if (!/^\d{4}$/.test(pinRaw)) {
+      setStatus('Le code PIN doit contenir exactement 4 chiffres.', true);
+      form.elements['login_pin'].focus();
+      return;
+    }
     const data = {
       mode: form.elements['mode'].value,
       ssid: form.elements['ssid'].value,
@@ -196,7 +208,8 @@
       ip: form.elements['ip'].value,
       gateway: form.elements['gateway'].value,
       netmask: form.elements['netmask'].value,
-      sta_hidden: document.getElementById('sta-hidden').checked
+      sta_hidden: document.getElementById('sta-hidden').checked,
+      login_pin: pinRaw
     };
 
     setStatus('Enregistrement en cours…');
