@@ -9,16 +9,46 @@
 
 UdpService::UdpService(ConfigStore *config, IORegistry *ioReg, Logger *logger)
     : m_rxPort(50000), m_txPort(50001), m_config(config), m_io(ioReg),
-      m_logger(logger), m_lastSend(0) {}
+      m_logger(logger), m_lastSend(0), m_enabled(true), m_running(false) {}
 
 void UdpService::begin() {
+  if (m_config) {
+    JsonDocument &doc = m_config->getConfig("udp");
+    if (doc.is<JsonObject>()) {
+      if (doc.containsKey("enabled")) {
+        m_enabled = doc["enabled"].as<bool>();
+      }
+      if (doc.containsKey("port")) {
+        m_rxPort = doc["port"].as<uint16_t>();
+      }
+      if (doc.containsKey("tx_port")) {
+        m_txPort = doc["tx_port"].as<uint16_t>();
+      }
+    }
+  }
+
+  if (!m_enabled) {
+    m_running = false;
+    if (m_logger)
+      m_logger->info("UDP service disabled by configuration");
+    return;
+  }
+
   // Bind to the receive port. If this fails there is little we can do.
-  m_udp.begin(m_rxPort);
-  if (m_logger)
-    m_logger->info(String("UDP RX port ") + m_rxPort + " bound");
+  m_running = m_udp.begin(m_rxPort) == 1;
+  if (m_logger) {
+    if (m_running) {
+      m_logger->info(String("UDP RX port ") + m_rxPort + " bound");
+    } else {
+      m_logger->error(String("Failed to bind UDP port ") + m_rxPort);
+    }
+  }
 }
 
 void UdpService::loop() {
+  if (!m_running) {
+    return;
+  }
   int packetSize = m_udp.parsePacket();
   if (packetSize > 0) {
     // Read incoming packet

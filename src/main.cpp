@@ -94,6 +94,8 @@ void setup() {
   // started early so that error messages can be displayed, then the
   // DMM, function generator and web/UDP services. Each module will
   // reference the configuration and logger as required.
+  oled.setConfigStore(&configStore);
+  oled.setUdpService(&udpService);
   oled.begin();
   dmm.begin();
   funcGen.begin();

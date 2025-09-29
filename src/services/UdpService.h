@@ -19,6 +19,7 @@ public:
   UdpService(ConfigStore *config, IORegistry *ioReg, Logger *logger);
   void begin();
   void loop();
+  bool isRunning() const { return m_running; }
 
 private:
   WiFiUDP m_udp;
@@ -28,6 +29,8 @@ private:
   IORegistry *m_io;
   Logger *m_logger;
   unsigned long m_lastSend;
+  bool m_enabled;
+  bool m_running;
 };
 
 #endif // MINILABOESP_UDPSERVICE_H

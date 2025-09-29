@@ -3,11 +3,18 @@
 #include "Oled.h"
 
 #include "core/Logger.h"
+#include "core/ConfigStore.h"
+#include "services/UdpService.h"
+#include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <Wire.h>
 
 Oled::Oled(Logger *logger)
     : m_u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE), m_logger(logger) {}
+
+void Oled::setConfigStore(ConfigStore *config) { m_config = config; }
+
+void Oled::setUdpService(UdpService *udp) { m_udpService = udp; }
 
 namespace {
 
@@ -122,11 +129,16 @@ void Oled::begin() {
   m_available = true;
   m_u8g2.clearBuffer();
   m_u8g2.setFont(u8g2_font_6x10_tf);
-  // Generate a random 4-digit PIN for the web interface. If a PIN
-  // already exists in configuration it could be loaded instead.
-  randomSeed(micros());
-  int pinNum = random(1000, 10000);
-  m_pin = String(pinNum);
+  // Load the 4-digit PIN from configuration. Fall back to a random PIN
+  // if configuration is unavailable.
+  String configuredPin = resolveLoginPin();
+  if (!configuredPin.isEmpty()) {
+    m_pin = configuredPin;
+  } else {
+    randomSeed(micros());
+    int pinNum = random(1000, 10000);
+    m_pin = String(pinNum);
+  }
   // Display a welcome message briefly
   m_u8g2.drawStr(0, 12, "MiniLaboESP");
   m_u8g2.drawStr(0, 24, "Starting...");
@@ -158,31 +170,156 @@ void Oled::updateStatus() {
   if (!m_available) {
     return;
   }
+  String configuredPin = resolveLoginPin();
+  if (!configuredPin.isEmpty()) {
+    m_pin = configuredPin;
+  }
+  size_t inputCount = 0;
+  size_t outputCount = 0;
+  computeIoCounts(inputCount, outputCount);
+  bool udpRunning = m_udpService && m_udpService->isRunning();
+  String wifiMode = currentWifiMode();
+
   m_u8g2.clearBuffer();
   m_u8g2.setFont(u8g2_font_6x10_tf);
-  // SoftAP SSID and IP information
-  String apSsid = WiFi.softAPSSID();
-  IPAddress apIp = WiFi.softAPIP();
-  String apIpStr = apIp.toString();
-  m_u8g2.drawStr(0, 10, (String("AP: ") + apSsid).c_str());
-  m_u8g2.drawStr(0, 22, (String("AP IP: ") + apIpStr).c_str());
+  int y = 10;
+  String modeLine = String("Mode: ") + wifiMode;
+  m_u8g2.drawStr(0, y, modeLine.c_str());
 
+  y += 10;
+  String apLine = String("AP IP: ") + WiFi.softAPIP().toString();
+  m_u8g2.drawStr(0, y, apLine.c_str());
+
+  y += 10;
   wl_status_t staStatus = WiFi.status();
+  String staLine;
   if (staStatus == WL_CONNECTED) {
-    m_u8g2.drawStr(0, 34, (String("STA: ") + WiFi.SSID()).c_str());
-    m_u8g2.drawStr(0, 46, (String("STA IP: ") + WiFi.localIP().toString()).c_str());
+    staLine = String("STA IP: ") + WiFi.localIP().toString();
   } else {
-    String staSsid = WiFi.SSID();
-    if (staSsid.isEmpty()) {
-      staSsid = "--";
+    staLine = String("STA ") + wifiStatusToString(staStatus);
+  }
+  m_u8g2.drawStr(0, y, staLine.c_str());
+
+  y += 10;
+  String pinLine = String("PIN: ") + (m_pin.isEmpty() ? String("----") : m_pin);
+  m_u8g2.drawStr(0, y, pinLine.c_str());
+
+  y += 10;
+  String udpLine = String("UDP: ") + (udpRunning ? "ON" : "OFF");
+  m_u8g2.drawStr(0, y, udpLine.c_str());
+
+  y += 10;
+  String ioLine = String("In:") + inputCount + String(" Out:") + outputCount;
+  m_u8g2.drawStr(0, y, ioLine.c_str());
+  m_u8g2.sendBuffer();
+}
+
+String Oled::resolveLoginPin() {
+  if (!m_config) {
+    return m_pin;
+  }
+  JsonDocument &doc = m_config->getConfig("network");
+  String pinCandidate;
+  if (doc.containsKey("login_pin")) {
+    pinCandidate = doc["login_pin"].as<String>();
+  }
+  String digits;
+  for (size_t i = 0; i < pinCandidate.length(); ++i) {
+    char c = pinCandidate.charAt(i);
+    if (c >= '0' && c <= '9') {
+      digits += c;
     }
-    m_u8g2.drawStr(0, 34, (String("STA: ") + staSsid).c_str());
-    m_u8g2.drawStr(0, 46, (String("STA ") + wifiStatusToString(staStatus)).c_str());
+  }
+  if (digits.length() > 4) {
+    digits = digits.substring(0, 4);
+  }
+  if (digits.length() == 4) {
+    return digits;
+  }
+  return String();
+}
+
+void Oled::computeIoCounts(size_t &inputs, size_t &outputs) {
+  inputs = 0;
+  outputs = 0;
+  if (!m_config) {
+    return;
   }
 
-  String pinLine = String("PIN: ") + m_pin;
-  m_u8g2.drawStr(0, 58, pinLine.c_str());
-  m_u8g2.sendBuffer();
+  auto countArray = [](JsonVariantConst var) -> size_t {
+    if (!var.is<JsonArray>()) {
+      return 0;
+    }
+    return var.size();
+  };
+
+  JsonDocument &ioDoc = m_config->getConfig("io");
+  if (ioDoc.is<JsonArray>()) {
+    JsonArray arr = ioDoc.as<JsonArray>();
+    for (JsonVariant v : arr) {
+      if (!v.is<JsonObject>()) {
+        continue;
+      }
+      JsonObject obj = v.as<JsonObject>();
+      String direction = obj["direction"].as<String>();
+      if (direction.isEmpty()) {
+        direction = obj["dir"].as<String>();
+      }
+      direction.toLowerCase();
+      if (direction == "output" || direction == "out") {
+        outputs++;
+        continue;
+      }
+      if (direction == "input" || direction == "in") {
+        inputs++;
+        continue;
+      }
+      String type = obj["type"].as<String>();
+      type.toLowerCase();
+      if (type.indexOf("out") != -1 || type.indexOf("dac") != -1 ||
+          type.indexOf("pwm") != -1) {
+        outputs++;
+      } else {
+        inputs++;
+      }
+    }
+  } else if (ioDoc.is<JsonObject>()) {
+    JsonObject obj = ioDoc.as<JsonObject>();
+    inputs = countArray(obj["inputs"]);
+    outputs = countArray(obj["outputs"]);
+  }
+
+  if (inputs == 0) {
+    JsonDocument &dmmDoc = m_config->getConfig("dmm");
+    if (dmmDoc.is<JsonArray>()) {
+      inputs = dmmDoc.size();
+    }
+  }
+
+  if (outputs == 0) {
+    JsonDocument &funcDoc = m_config->getConfig("funcgen");
+    if (funcDoc.is<JsonArray>()) {
+      outputs = funcDoc.size();
+    } else if (funcDoc.is<JsonObject>() && funcDoc.size() > 0) {
+      outputs = 1;
+    }
+  }
+}
+
+String Oled::currentWifiMode() const {
+  WiFiMode_t mode = WiFi.getMode();
+  bool ap = mode & WIFI_AP;
+  bool sta = mode & WIFI_STA;
+  if (ap && sta) {
+    return "AP+STA";
+  }
+  if (ap) {
+    return "AP";
+  }
+  if (sta) {
+    return "STA";
+  }
+  return "OFF";
 }
 
 void Oled::showError(const String &msg) {

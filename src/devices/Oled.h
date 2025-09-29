@@ -10,6 +10,8 @@
 #include <U8g2lib.h>
 
 class Logger;
+class ConfigStore;
+class UdpService;
 class Oled {
 public:
   explicit Oled(Logger *logger);
@@ -18,7 +20,7 @@ public:
   // session and prepares the display. Must be called after wire
   // initialization (implicitly done by U8g2).
   void begin();
-
+  
   // Update the status screen. Shows network SSID, PIN and a summary
   // of service states. Should be called periodically (e.g. once per
   // second).
@@ -29,6 +31,9 @@ public:
   // condition prevents the normal operation of the firmware.
   void showError(const String &msg);
 
+  void setConfigStore(ConfigStore *config);
+  void setUdpService(UdpService *udp);
+
 private:
   U8G2_SSD1306_128X64_NONAME_F_HW_I2C m_u8g2;
   Logger *m_logger;
@@ -38,6 +43,12 @@ private:
   int8_t m_sdaPin = -1;
   int8_t m_sclPin = -1;
   uint32_t m_i2cClockHz = 100000;
+  ConfigStore *m_config = nullptr;
+  UdpService *m_udpService = nullptr;
+
+  String resolveLoginPin();
+  void computeIoCounts(size_t &inputs, size_t &outputs);
+  String currentWifiMode() const;
 };
 
 #endif // MINILABOESP_OLED_H
