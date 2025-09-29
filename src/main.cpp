@@ -61,6 +61,13 @@ void setup() {
   // stabilise before printing any messages.
   Serial.begin(DEBUG_SERIAL_BAUD);
   delay(100);
+  Serial.setDebugOutput(true);
+  Serial.println();
+  Serial.println(F("=== MiniLaboESP boot ==="));
+  Serial.print(F("[BOOT] Reset reason: "));
+  Serial.println(ESP.getResetReason());
+  Serial.print(F("[BOOT] Free heap: "));
+  Serial.println(ESP.getFreeHeap());
 
   // Mount the filesystem. LittleFS is chosen because it is reliable and
   // supports wear levelling. If mounting fails the device cannot
@@ -76,6 +83,8 @@ void setup() {
   // Start the logger. This opens the log file and records a boot event.
   logger.begin();
   logger.info("Booting MiniLaboESP");
+  logger.info(String("Reset reason: ") + ESP.getResetReason());
+  logger.info(String("Free heap: ") + String(ESP.getFreeHeap()));
 
   // Start file write service. This must be called after LittleFS
   // begins so that write operations succeed. Currently it does not
@@ -86,6 +95,7 @@ void setup() {
   // present on the filesystem. Missing files will result in empty
   // documents and defaults can be applied later.
   configStore.begin();
+  ioRegistry.begin(&configStore);
 
   // Set up networking in AP+STA mode based on the configuration.
   setupWiFi();
@@ -117,6 +127,9 @@ void loop() {
     webApi.loop();
     udpService.loop();
   }
+
+  // Update IO subsystem in case sensors require periodic handling.
+  ioRegistry.loop();
 
   // Process queued file writes. Only one write is performed per
   // invocation to avoid blocking. This is essential to prevent
