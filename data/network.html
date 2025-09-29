@@ -1,93 +1,286 @@
 <!DOCTYPE html>
 <html lang="fr">
-<!--
-  network.html
-
-  Cette page est un squelette pour la configuration réseau du MiniLabo.
-  Elle doit permettre à l’utilisateur de sélectionner le mode WiFi (AP
-  ou STA), de saisir le SSID et le mot de passe de la station, ainsi
-  que les informations pour le point d’accès. Elle doit charger la
-  configuration existante via /api/config?area=network et envoyer
-  les modifications via PUT /api/config?area=network. Aucune
-  persistance n’est implémentée ici : les handlers doivent être
-  ajoutés côté firmware et cette page doit inclure le code JavaScript
-  nécessaire (fetch, validation, etc.).
-  TODO: implémenter la logique de chargement et de sauvegarde.
--->
 <head>
   <meta charset="utf-8">
   <title>Configuration Réseau – MiniLabo</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2rem;
+      line-height: 1.5;
+    }
+    fieldset {
+      margin-bottom: 1.5rem;
+      border-radius: 0.5rem;
+      padding: 1rem 1.5rem;
+      border: 1px solid #ccc;
+    }
+    legend {
+      font-weight: bold;
+      padding: 0 0.5rem;
+    }
+    label {
+      display: block;
+      margin: 0.5rem 0;
+    }
+    .hidden {
+      display: none;
+    }
+    .inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .help {
+      font-size: 0.9rem;
+      color: #444;
+      margin: 0.25rem 0 0;
+    }
+    #networks {
+      margin-top: 0.75rem;
+      max-height: 12rem;
+      overflow: auto;
+      border: 1px solid #ccc;
+      border-radius: 0.5rem;
+      padding: 0.5rem;
+    }
+    #networks button {
+      width: 100%;
+      text-align: left;
+      margin-bottom: 0.25rem;
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 0.5rem;
+      background: #f6f6f6;
+      cursor: pointer;
+    }
+    #networks button:hover {
+      background: #e9f2ff;
+    }
+    #status {
+      margin-top: 1rem;
+      min-height: 1.5rem;
+      font-weight: 600;
+    }
+  </style>
 </head>
 <body>
-  <h1>Configuration Réseau</h1>
-  <p>Cette page permettra de configurer le mode WiFi de l’appareil.</p>
+  <h1>Configuration réseau</h1>
+  <p>
+    Cette page permet de choisir le mode WiFi du MiniLabo, de configurer la connexion
+    station (STA) ou le point d’accès (AP) intégré et d’enregistrer les paramètres
+    vers l’appareil.
+  </p>
   <form id="net-form">
     <fieldset>
-      <legend>Mode</legend>
-      <label><input type="radio" name="mode" value="ap" checked> Point d’accès (AP)</label><br>
-      <label><input type="radio" name="mode" value="sta"> Station (STA)</label>
+      <legend>Mode WiFi</legend>
+      <label class="inline"><input type="radio" name="mode" value="ap" checked> Point d’accès (AP)</label>
+      <label class="inline"><input type="radio" name="mode" value="sta"> Station (STA)</label>
+      <p id="mode-help" class="help"></p>
     </fieldset>
+
+    <fieldset id="sta-section" class="hidden">
+      <legend>Connexion station (STA)</legend>
+      <p>Choisissez un réseau existant ou saisissez un SSID manuellement.</p>
+      <div class="inline">
+        <button type="button" id="scan">Scanner les réseaux WiFi</button>
+        <span id="scan-status" aria-live="polite"></span>
+      </div>
+      <div id="networks" class="hidden" aria-live="polite" aria-label="Réseaux WiFi disponibles"></div>
+      <label>
+        SSID station
+        <input type="text" name="ssid" autocomplete="off" placeholder="Nom du réseau">
+      </label>
+      <label>
+        Mot de passe station
+        <input type="password" name="password" autocomplete="off" placeholder="Mot de passe du réseau">
+      </label>
+      <label class="inline">
+        <input type="checkbox" id="sta-hidden"> Le SSID n’est pas diffusé
+      </label>
+      <p class="help">Si le SSID est masqué, saisissez-le exactement comme configuré sur votre routeur.</p>
+    </fieldset>
+
+    <fieldset id="ap-section" class="hidden">
+      <legend>Point d’accès intégré (AP)</legend>
+      <p>Définissez ici les paramètres du point d’accès créé par le MiniLabo.</p>
+      <label>
+        SSID du point d’accès
+        <input type="text" name="ap_ssid" autocomplete="off" placeholder="Nom du point d’accès">
+      </label>
+      <label>
+        Mot de passe du point d’accès
+        <input type="password" name="ap_password" autocomplete="off" placeholder="Au moins 8 caractères">
+      </label>
+      <p class="help">Le mot de passe doit contenir au minimum 8 caractères pour respecter la norme WPA2.</p>
+    </fieldset>
+
     <fieldset>
-      <legend>Paramètres STA</legend>
-      <label>SSID: <input type="text" name="ssid"></label><br>
-      <label>Mot de passe: <input type="password" name="password"></label><br>
+      <legend>Administration</legend>
+      <label>
+        Adresse IP (optionnelle)
+        <input type="text" name="ip" placeholder="ex : 192.168.1.42">
+      </label>
+      <label>
+        Passerelle
+        <input type="text" name="gateway" placeholder="ex : 192.168.1.1">
+      </label>
+      <label>
+        Masque de sous-réseau
+        <input type="text" name="netmask" placeholder="ex : 255.255.255.0">
+      </label>
+      <p class="help">Laissez les champs vides pour obtenir une configuration dynamique via DHCP.</p>
     </fieldset>
-    <fieldset>
-      <legend>Paramètres AP</legend>
-      <label>SSID AP: <input type="text" name="ap_ssid"></label><br>
-      <label>Mot de passe AP: <input type="password" name="ap_password"></label><br>
-    </fieldset>
-    <button type="submit">Enregistrer</button>
+
+    <div class="inline">
+      <button type="submit">Enregistrer la configuration</button>
+      <button type="button" id="reload">Recharger</button>
+    </div>
   </form>
-  <p id="status"></p>
+  <p id="status" aria-live="polite"></p>
+
   <script>
-  // Charge la configuration réseau existante et remplit le formulaire.
-  async function loadNetworkConfig() {
-    try {
-      const r = await fetch('/api/config?area=network');
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const cfg = await r.json();
-      // Mode
-      const mode = cfg.mode || 'ap';
-      document.querySelectorAll('input[name="mode"]').forEach(radio => {
-        radio.checked = (radio.value === mode);
-      });
-      // STA
-      document.querySelector('input[name="ssid"]').value = cfg.ssid || '';
-      document.querySelector('input[name="password"]').value = cfg.password || '';
-      // AP
-      document.querySelector('input[name="ap_ssid"]').value = cfg.ap_ssid || '';
-      document.querySelector('input[name="ap_password"]').value = cfg.ap_password || '';
-    } catch (e) {
-      console.warn('Failed to load network config', e);
-      document.getElementById('status').textContent = 'Erreur de chargement de la configuration.';
+  function updateModeHelp(mode) {
+    const help = document.getElementById('mode-help');
+    if (mode === 'sta') {
+      help.textContent = 'Le MiniLabo se connectera à votre réseau WiFi existant.';
+    } else {
+      help.textContent = 'Le MiniLabo créera son propre réseau WiFi accessible depuis vos appareils.';
     }
   }
-  // Sauvegarde la configuration modifiée
-  async function saveNetworkConfig(e) {
-    e.preventDefault();
-    const form = document.getElementById('net-form');
-    const data = {};
-    data.mode = form.elements['mode'].value;
-    data.ssid = form.elements['ssid'].value;
-    data.password = form.elements['password'].value;
-    data.ap_ssid = form.elements['ap_ssid'].value;
-    data.ap_password = form.elements['ap_password'].value;
+
+  function toggleSections(mode) {
+    document.getElementById('sta-section').classList.toggle('hidden', mode !== 'sta');
+    document.getElementById('ap-section').classList.toggle('hidden', mode !== 'ap');
+    updateModeHelp(mode);
+  }
+
+  async function loadNetworkConfig() {
+    setStatus('Chargement de la configuration…');
     try {
-      const r = await fetch('/api/config?area=network', {
+      const response = await fetch('/api/config?area=network');
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const cfg = await response.json();
+      const form = document.getElementById('net-form');
+      const mode = cfg.mode || 'ap';
+      form.elements['mode'].value = mode;
+      form.querySelectorAll('input[name="mode"]').forEach(radio => {
+        radio.checked = (radio.value === mode);
+      });
+      form.elements['ssid'].value = cfg.ssid || '';
+      form.elements['password'].value = cfg.password || '';
+      form.elements['ap_ssid'].value = cfg.ap_ssid || '';
+      form.elements['ap_password'].value = cfg.ap_password || '';
+      form.elements['ip'].value = cfg.ip || '';
+      form.elements['gateway'].value = cfg.gateway || '';
+      form.elements['netmask'].value = cfg.netmask || '';
+      document.getElementById('sta-hidden').checked = !!cfg.sta_hidden;
+      toggleSections(mode);
+      setStatus('Configuration chargée.');
+    } catch (err) {
+      console.warn('Failed to load network config', err);
+      setStatus('Impossible de charger la configuration réseau.', true);
+    }
+  }
+
+  async function saveNetworkConfig(event) {
+    event.preventDefault();
+    const form = document.getElementById('net-form');
+    const data = {
+      mode: form.elements['mode'].value,
+      ssid: form.elements['ssid'].value,
+      password: form.elements['password'].value,
+      ap_ssid: form.elements['ap_ssid'].value,
+      ap_password: form.elements['ap_password'].value,
+      ip: form.elements['ip'].value,
+      gateway: form.elements['gateway'].value,
+      netmask: form.elements['netmask'].value,
+      sta_hidden: document.getElementById('sta-hidden').checked
+    };
+
+    setStatus('Enregistrement en cours…');
+    try {
+      const response = await fetch('/api/config?area=network', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      document.getElementById('status').textContent = 'Enregistré.';
-    } catch (e) {
-      console.warn(e);
-      document.getElementById('status').textContent = 'Erreur d’enregistrement.';
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      setStatus('Configuration enregistrée avec succès.');
+    } catch (err) {
+      console.warn('Failed to save network config', err);
+      setStatus('Échec de l’enregistrement de la configuration.', true);
     }
   }
+
+  async function scanNetworks() {
+    const btn = document.getElementById('scan');
+    const list = document.getElementById('networks');
+    const status = document.getElementById('scan-status');
+    btn.disabled = true;
+    status.textContent = 'Scan en cours…';
+    list.innerHTML = '';
+    list.classList.add('hidden');
+    try {
+      const response = await fetch('/api/wifi/scan');
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const networks = await response.json();
+      if (!Array.isArray(networks) || networks.length === 0) {
+        status.textContent = 'Aucun réseau trouvé.';
+      } else {
+        status.textContent = networks.length + ' réseau(x) détecté(s). Cliquez pour sélectionner.';
+        list.classList.remove('hidden');
+        networks.sort((a, b) => (b.rssi || 0) - (a.rssi || 0));
+        for (const net of networks) {
+          const button = document.createElement('button');
+          const secure = net.secure ?? (typeof net.encryption === 'string' ? net.encryption.toLowerCase() !== 'open' : undefined);
+          const securityIcon = secure === false ? '🔓' : '🔒';
+          const securityLabel = typeof net.encryption === 'string' ? net.encryption : (secure === false ? 'Ouvert' : 'Sécurisé');
+          const channel = net.channel != null ? `CH ${net.channel}` : '';
+          const requiresPassword = secure !== false;
+          button.type = 'button';
+          const parts = [
+            net.ssid || '<SSID masqué>',
+            `${securityIcon} ${securityLabel}`,
+            channel,
+            `RSSI ${net.rssi ?? '?'} dBm`
+          ].filter(Boolean);
+          button.textContent = parts.join(' · ');
+          button.addEventListener('click', () => {
+            document.querySelector('input[name="ssid"]').value = net.ssid || '';
+            document.getElementById('sta-hidden').checked = !net.ssid;
+            if (requiresPassword) {
+              document.querySelector('input[name="password"]').focus();
+            }
+          });
+          list.appendChild(button);
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to scan networks', err);
+      status.textContent = 'Erreur pendant le scan WiFi.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function setStatus(message, isError = false) {
+    const status = document.getElementById('status');
+    status.textContent = message;
+    status.style.color = isError ? '#b00020' : '#184a2c';
+  }
+
   document.getElementById('net-form').addEventListener('submit', saveNetworkConfig);
+  document.getElementById('reload').addEventListener('click', loadNetworkConfig);
+  document.getElementById('scan').addEventListener('click', scanNetworks);
+  document.querySelectorAll('input[name="mode"]').forEach(radio => {
+    radio.addEventListener('change', () => toggleSections(radio.value));
+  });
+
+  const checkedMode = document.querySelector('input[name="mode"]:checked');
+  toggleSections(checkedMode ? checkedMode.value : 'ap');
+
   loadNetworkConfig();
   </script>
 </body>
