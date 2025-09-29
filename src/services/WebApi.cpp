@@ -32,6 +32,16 @@ void WebApi::begin() {
         handlePutConfig();
       });
   m_server.on(
+      "/api/io/hardware", HTTP_GET,
+      [this]() {
+        handleIoHardware();
+      });
+  m_server.on(
+      "/api/io/snapshot", HTTP_GET,
+      [this]() {
+        handleIoSnapshot();
+      });
+  m_server.on(
       "/api/dmm", HTTP_GET,
       [this]() {
         handleDmm();
@@ -111,6 +121,32 @@ void WebApi::handleGetConfig() {
   }
   String area = m_server.arg("area");
   JsonDocument &doc = m_config->getConfig(area);
+  String response;
+  serializeJson(doc, response);
+  m_server.send(200, "application/json", response);
+}
+
+void WebApi::handleIoHardware() {
+  if (!m_io) {
+    m_server.send(500, "application/json",
+                  "{\"error\":\"io unavailable\"}");
+    return;
+  }
+  StaticJsonDocument<512> doc;
+  m_io->describeHardware(doc);
+  String response;
+  serializeJson(doc, response);
+  m_server.send(200, "application/json", response);
+}
+
+void WebApi::handleIoSnapshot() {
+  if (!m_io) {
+    m_server.send(500, "application/json",
+                  "{\"error\":\"io unavailable\"}");
+    return;
+  }
+  StaticJsonDocument<4096> doc;
+  m_io->snapshot(doc);
   String response;
   serializeJson(doc, response);
   m_server.send(200, "application/json", response);

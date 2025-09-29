@@ -46,6 +46,8 @@ private:
   void handleFuncGen();
   void handleLogsTail();
   void handleWifiScan();
+  void handleIoHardware();
+  void handleIoSnapshot();
 
   // Handle a login request. Accepts a JSON body containing a
   // "pin" field. The provided PIN is compared against the value

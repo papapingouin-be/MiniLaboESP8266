@@ -40,13 +40,25 @@ public:
   // Convenience function to read and convert in one call.
   float readValue(const String &id);
 
+  // Provide a description of the available IO hardware so the web UI
+  // can expose the right options. The document is cleared and filled
+  // with an object that lists available local inputs and their indexes.
+  void describeHardware(JsonDocument &doc);
+
+  // Produce a snapshot of all configured channels including the latest
+  // raw reading, converted value and configured unit.
+  void snapshot(JsonDocument &doc);
+
 private:
+  bool ensureAdsReady();
+
   struct Channel {
     String id;
     String type; // "a0", "ads1115", etc.
     uint8_t index;
     float k;
     float b;
+    String unit;
   };
 
   // Maximum number of IO channels supported. Increase if you need more
@@ -59,6 +71,7 @@ private:
   ConfigStore *m_config;
   Adafruit_ADS1115 *m_ads;
   bool m_adsInitialized;
+  bool m_adsAttempted;
 };
 
 #endif // MINILABOESP_IOREGISTRY_H
