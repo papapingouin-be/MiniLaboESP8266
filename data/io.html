@@ -4,29 +4,422 @@
   <meta charset="utf-8">
   <title>Configuration des IO – MiniLabo</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      padding-bottom: 3rem;
+    }
+
+    nav.quick-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    nav.quick-links a {
+      background: #eef3ff;
+      border-radius: 999px;
+      color: #1f3d7a;
+      padding: 0.4rem 0.9rem;
+      text-decoration: none;
+      font-weight: 600;
+      border: 1px solid #b7c5ff;
+    }
+
+    .io-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+      gap: 1.75rem;
+      align-items: start;
+    }
+
+    table#ioTable {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table#ioTable th,
+    table#ioTable td {
+      border: 1px solid #c8d2e0;
+      padding: 0.4rem 0.6rem;
+    }
+
+    table#ioTable tbody tr.selected {
+      outline: 2px solid #0059ff;
+      outline-offset: -2px;
+      background: #f0f5ff;
+    }
+
+    table#ioTable tbody tr:hover {
+      background: #f7faff;
+    }
+
+    td input[readonly] {
+      background: #f8f9fc;
+      border: none;
+      font-weight: 600;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .panel {
+      background: #f7f9fc;
+      border: 1px solid #d7deea;
+      border-radius: 12px;
+      padding: 1.2rem 1.5rem;
+    }
+
+    .panel h2 {
+      margin-top: 0;
+    }
+
+    .panel ul {
+      margin: 0.5rem 0 0.25rem;
+    }
+
+    .typology-grid {
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    .typology-grid article {
+      background: #fff;
+      border: 1px solid #dbe3f6;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+
+    .typology-grid h3 {
+      margin-top: 0;
+    }
+
+    details.typology-details {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #ccd8ef;
+      padding: 0.8rem 1rem;
+    }
+
+    details.typology-details + details.typology-details {
+      margin-top: 0.75rem;
+    }
+
+    details.typology-details summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #1c317a;
+    }
+
+    .assistant-section form {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .assistant-section label {
+      display: flex;
+      flex-direction: column;
+      font-size: 0.95rem;
+      gap: 0.25rem;
+    }
+
+    .assistant-section input,
+    .assistant-section select {
+      padding: 0.4rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid #c7d2e5;
+    }
+
+    .assistant-section button {
+      justify-self: flex-start;
+    }
+
+    .assistant-result {
+      background: #fff;
+      border: 1px dashed #a3b3d4;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      font-family: "Courier New", monospace;
+      white-space: pre-wrap;
+    }
+
+    .legend {
+      font-size: 0.9rem;
+      color: #304160;
+    }
+
+    .highlight {
+      font-weight: 600;
+      color: #214bb8;
+    }
+
+    @media (max-width: 900px) {
+      .io-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
   <h1>Configuration des entrées/sorties</h1>
-  <p>Cette page permet d’afficher et de modifier la configuration des entrées/sorties physiques. Vous pouvez ajuster l’index et les coefficients de calibration <code>k</code> et <code>b</code> pour chaque canal.</p>
-  <table id="ioTable">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Type</th>
-        <th>Index</th>
-        <th>k</th>
-        <th>b</th>
-      </tr>
-    </thead>
-    <tbody>
-    </tbody>
-  </table>
-  <button onclick="refresh()">Rafraîchir</button>
-  <button onclick="save()">Enregistrer</button>
-  <p id="status"></p>
+  <p>Cette page centralise la typologie des entrées/sorties du MiniLabo et propose des outils de calibration. Commencez par
+  sélectionner un canal dans le tableau, puis utilisez l’assistant pour calculer la conversion entre la grandeur électrique
+  mesurée et la grandeur physique souhaitée.</p>
+
+  <nav class="quick-links">
+    <a href="#typologie-entrees">Entrées</a>
+    <a href="#typologie-sorties">Sorties</a>
+    <a href="#udp">Serveur&nbsp;UDP</a>
+    <a href="#configuration">Table de configuration</a>
+    <a href="#assistant">Assistant de calibration</a>
+  </nav>
+
+  <section id="typologie-entrees" class="panel">
+    <h2>Typologie des entrées</h2>
+    <p>Une entrée convertit un signal en une valeur exploitable par les outils web (oscilloscope, DMM, scripts math, UDP). Les
+    entrées peuvent être locales (connectées directement à l’ESP8266) ou déportées (reçues via le réseau).</p>
+    <div class="typology-grid">
+      <article>
+        <h3>Entrées réelles locales</h3>
+        <ul>
+          <li><span class="highlight">ADC interne (A0)</span> : 10 bits, 0–1 V natif (0–3,3 V avec diviseur intégré sur NodeMCU).</li>
+          <li><span class="highlight">ADS1115 (I²C)</span> : module 16 bits avec amplification programmable, idéal pour les mesures fines.</li>
+          <li><span class="highlight">ZMPT101B</span> : transformateur de tension AC, sortie 0–3,3 V, 10 bits.</li>
+          <li><span class="highlight">ZMCT103C</span> : transformateur de courant AC, tension de sortie proportionnelle.</li>
+        </ul>
+      </article>
+      <article>
+        <h3>Entrées déportées</h3>
+        <p>Les valeurs proviennent d’autres modules (ESP8266/ESP32) ou d’un PC via UDP. Elles complètent la configuration locale et
+        sont intégrées aux mêmes outils de visualisation.</p>
+        <ul>
+          <li>Permet de centraliser des mesures distantes dans un seul MiniLabo.</li>
+          <li>Chaque flux UDP est identifié par un nom de canal (ID) repris dans le tableau de configuration.</li>
+          <li>La normalisation k/b peut s’appliquer comme pour les entrées réelles.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section id="typologie-sorties" class="panel">
+    <h2>Typologie des sorties</h2>
+    <div class="typology-grid">
+      <article>
+        <h3>Sorties réelles</h3>
+        <ul>
+          <li><span class="highlight">MCP4725 (DAC 12 bits)</span> : conversion en tension 0–3,3 V proportionnelle au pourcentage demandé.</li>
+          <li><span class="highlight">Convertisseur PWM → 0–10 V</span> : interface pour actionneurs industriels ou drivers de LED.</li>
+        </ul>
+      </article>
+      <article>
+        <h3>Stratégies d’utilisation</h3>
+        <ul>
+          <li>Associez chaque sortie à l’entrée ou au calcul math correspondant (PID, consigne, etc.).</li>
+          <li>Définissez une conversion inverse (grandeur physique → tension) via les coefficients k/b.</li>
+          <li>Utilisez les outils math pour générer des profils de sortie ou automatiser des séquences.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section id="udp" class="panel">
+    <h2>Serveur UDP</h2>
+    <p>Le MiniLabo peut diffuser ses valeurs sur le réseau via <span class="highlight">UDP TX</span>. Toute valeur convertie (après k/b)
+    peut être publiée vers un autre MiniLabo ou un PC pour être affichée, enregistrée ou réinjectée dans une boucle d’asservissement.</p>
+    <ul class="legend">
+      <li>Utilisez le champ <em>type</em> pour distinguer les canaux UDP entrants (« udp-in ») et sortants (« udp-out »).</li>
+      <li>Configurez les paramètres réseau dans l’onglet <a href="udp.html">UDP</a> puis associez le canal dans cette page.</li>
+      <li>Le statut du flux est visible dans la page <a href="logs.html">Logs</a> et dans l’onglet réseau.</li>
+    </ul>
+  </section>
+
+  <div class="io-layout" id="configuration">
+    <section>
+      <h2>Table de configuration des canaux</h2>
+      <p>Sélectionnez une ligne pour la relier aux outils de calibration. Les colonnes <em>k</em> et <em>b</em> définissent la relation
+      <code>valeur_physique = k × mesure + b</code>.</p>
+      <table id="ioTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Index</th>
+            <th>k</th>
+            <th>b</th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+      <div class="actions">
+        <button type="button" onclick="refresh()">Rafraîchir</button>
+        <button type="button" onclick="save()">Enregistrer</button>
+      </div>
+      <p id="status"></p>
+    </section>
+
+    <aside id="assistant" class="panel assistant-section">
+      <h2>Assistant de calibration</h2>
+      <p class="legend">Ligne sélectionnée : <span id="selectedChannel">aucune</span></p>
+      <form onsubmit="event.preventDefault(); computeCalibration();">
+        <label>
+          Profil matériel
+          <select id="hardwareProfile"></select>
+        </label>
+        <label>
+          Mesure min (valeur brute)
+          <input type="number" id="rawMin" step="any" value="0">
+        </label>
+        <label>
+          Mesure max (valeur brute)
+          <input type="number" id="rawMax" step="any" value="1023">
+        </label>
+        <label>
+          Grandeur physique min
+          <input type="number" id="physMin" step="any" value="0">
+        </label>
+        <label>
+          Grandeur physique max
+          <input type="number" id="physMax" step="any" value="1">
+        </label>
+        <button type="submit">Calculer k &amp; b</button>
+      </form>
+      <div class="assistant-result" id="assistantResult">Complétez les champs ci-dessus pour obtenir la formule.</div>
+      <div class="actions">
+        <button type="button" onclick="applyToSelection()">Appliquer à la ligne sélectionnée</button>
+        <button type="button" onclick="resetAssistant()">Réinitialiser</button>
+      </div>
+      <details class="typology-details" open>
+        <summary>Astuces de conversion</summary>
+        <ul>
+          <li>Pour un capteur linéaire 0–10 V relié à l’ADS1115 : mesure min = 0, mesure max = 32767 (16 bits), grandeur max = 10.</li>
+          <li>Pour un transformateur ZMPT101B : renseignez les valeurs RMS attendues (ex. 0 V ↔ 0 V, 230 V ↔ 1,65 V).</li>
+          <li>Pour une entrée UDP représentant un pourcentage : mesure min = 0, max = 100, grandeur max = 1 (pour normaliser).</li>
+        </ul>
+      </details>
+    </aside>
+  </div>
+
+  <section class="panel">
+    <h2>FAQ express</h2>
+    <details class="typology-details">
+      <summary>Comment déterminer k et b ?</summary>
+      <p>Mesurez deux points de référence (min et max) ou utilisez la fiche technique du capteur. L’assistant calcule automatiquement<br>
+      <code>k = (physMax − physMin) / (rawMax − rawMin)</code> et <code>b = physMin − k × rawMin</code>.</p>
+    </details>
+    <details class="typology-details">
+      <summary>Que signifie l’index ?</summary>
+      <p>Il s’agit du canal physique ou logique. Pour l’ADC interne, l’index est souvent 0. Pour l’ADS1115, utilisez l’entrée A0–A3.
+      Pour l’UDP, l’index correspond au port logique défini dans la configuration réseau.</p>
+    </details>
+    <details class="typology-details">
+      <summary>Comment créer une chaîne complète mesure → actionneur ?</summary>
+      <p>1) Configurez l’entrée et normalisez-la.<br>2) Utilisez l’onglet <a href="math.html">Math</a> pour appliquer un traitement ou un
+      contrôle.<br>3) Mappez le résultat sur une sortie dans cette page et, si besoin, diffusez-le via UDP.</p>
+    </details>
+  </section>
 
   <script>
-  // Charge la configuration IO depuis l’API et renseigne le tableau.
+  const hardwareProfiles = [
+    {
+      id: 'adc',
+      name: 'ADC interne (A0)',
+      bits: 10,
+      rawMin: 0,
+      rawMax: 1023,
+      description: 'Entrée 0–1 V (ou 0–3,3 V avec diviseur).'
+    },
+    {
+      id: 'ads1115',
+      name: 'ADS1115 (gain ±4.096 V)',
+      bits: 16,
+      rawMin: 0,
+      rawMax: 32767,
+      description: '16 bits, utilisez le gain selon votre montage.'
+    },
+    {
+      id: 'zmpt101b',
+      name: 'ZMPT101B (0–3,3 V)',
+      bits: 10,
+      rawMin: 0,
+      rawMax: 1023,
+      description: 'Transformateur de tension AC.'
+    },
+    {
+      id: 'zmct103c',
+      name: 'ZMCT103C (sortie AC)',
+      bits: 10,
+      rawMin: 0,
+      rawMax: 1023,
+      description: 'Transformateur de courant AC.'
+    },
+    {
+      id: 'udp',
+      name: 'Entrée UDP personnalisée',
+      bits: 16,
+      rawMin: 0,
+      rawMax: 1,
+      description: 'Adapter les bornes selon la source distante.'
+    }
+  ];
+
+  let selectedRow = null;
+  let lastComputation = null;
+
+  function populateProfiles() {
+    const select = document.getElementById('hardwareProfile');
+    select.innerHTML = '';
+    hardwareProfiles.forEach(profile => {
+      const option = document.createElement('option');
+      option.value = profile.id;
+      option.textContent = profile.name;
+      option.dataset.rawMin = profile.rawMin;
+      option.dataset.rawMax = profile.rawMax;
+      option.title = profile.description;
+      select.appendChild(option);
+    });
+    if (hardwareProfiles.length) {
+      const first = hardwareProfiles[0];
+      document.getElementById('rawMin').value = first.rawMin;
+      document.getElementById('rawMax').value = first.rawMax;
+    }
+    select.addEventListener('change', event => {
+      const option = event.target.selectedOptions[0];
+      if (!option) return;
+      document.getElementById('rawMin').value = option.dataset.rawMin;
+      document.getElementById('rawMax').value = option.dataset.rawMax;
+    });
+  }
+
+  function attachRowHandlers(tr) {
+    tr.addEventListener('click', () => {
+      if (selectedRow) {
+        selectedRow.classList.remove('selected');
+      }
+      selectedRow = tr;
+      selectedRow.classList.add('selected');
+      const id = tr.querySelector('td:nth-child(1) input').value || '(sans ID)';
+      document.getElementById('selectedChannel').textContent = id;
+      if (lastComputation) {
+        applyValuesToRow(tr, lastComputation.k, lastComputation.b);
+      }
+    });
+  }
+
+  function applyValuesToRow(tr, k, b) {
+    const inputs = tr.querySelectorAll('td input');
+    if (inputs.length >= 5) {
+      inputs[3].value = Number.isFinite(k) ? Number(k.toFixed(6)) : '';
+      inputs[4].value = Number.isFinite(b) ? Number(b.toFixed(6)) : '';
+    }
+  }
+
   async function refresh() {
     try {
       const res = await fetch('/api/config?area=io');
@@ -34,25 +427,27 @@
       const tbody = document.querySelector('#ioTable tbody');
       tbody.innerHTML = '';
       if (Array.isArray(data)) {
-        data.forEach((ch, idx) => {
+        data.forEach(ch => {
           const tr = document.createElement('tr');
-          // ID et type ne sont pas modifiables pour éviter les incohérences.
           tr.innerHTML =
             '<td><input type="text" value="' + (ch.id || '') + '" readonly></td>' +
             '<td><input type="text" value="' + (ch.type || '') + '" readonly></td>' +
             '<td><input type="number" value="' + (ch.index !== undefined ? ch.index : 0) + '" min="0" step="1"></td>' +
             '<td><input type="number" value="' + (ch.k !== undefined ? ch.k : 0) + '" step="0.000001"></td>' +
             '<td><input type="number" value="' + (ch.b !== undefined ? ch.b : 0) + '" step="0.001"></td>';
+          attachRowHandlers(tr);
           tbody.appendChild(tr);
         });
       }
       document.getElementById('status').textContent = '';
+      if (!tbody.children.length) {
+        document.getElementById('status').textContent = 'Aucun canal n’est configuré pour le moment.';
+      }
     } catch (e) {
       document.getElementById('status').textContent = 'Erreur lors du chargement de la configuration IO.';
     }
   }
 
-  // Collecte le contenu du tableau et envoie la configuration au serveur.
   async function save() {
     const rows = document.querySelectorAll('#ioTable tbody tr');
     const payload = [];
@@ -60,7 +455,7 @@
       const cells = tr.querySelectorAll('td input');
       const id = cells[0].value;
       const type = cells[1].value;
-      const index = parseInt(cells[2].value);
+      const index = parseInt(cells[2].value, 10);
       const k = parseFloat(cells[3].value);
       const b = parseFloat(cells[4].value);
       payload.push({ id: id, type: type, index: index, k: k, b: b });
@@ -82,6 +477,56 @@
     }
   }
 
+  function computeCalibration() {
+    const rawMin = parseFloat(document.getElementById('rawMin').value);
+    const rawMax = parseFloat(document.getElementById('rawMax').value);
+    const physMin = parseFloat(document.getElementById('physMin').value);
+    const physMax = parseFloat(document.getElementById('physMax').value);
+
+    if (!Number.isFinite(rawMin) || !Number.isFinite(rawMax) || rawMin === rawMax) {
+      document.getElementById('assistantResult').textContent = 'Vérifiez les valeurs de mesure min/max (elles doivent être différentes).';
+      return;
+    }
+
+    const k = (physMax - physMin) / (rawMax - rawMin);
+    const b = physMin - k * rawMin;
+    lastComputation = { k, b };
+    const result = [
+      'k = ' + k.toPrecision(8),
+      'b = ' + b.toPrecision(8),
+      '',
+      'Formule : valeur_physique = ' + k.toPrecision(8) + ' × mesure + ' + b.toPrecision(8)
+    ].join('\n');
+    document.getElementById('assistantResult').textContent = result;
+
+    if (selectedRow) {
+      applyValuesToRow(selectedRow, k, b);
+    }
+  }
+
+  function applyToSelection() {
+    if (!selectedRow) {
+      document.getElementById('assistantResult').textContent = 'Sélectionnez d’abord une ligne dans la table.';
+      return;
+    }
+    if (!lastComputation) {
+      document.getElementById('assistantResult').textContent = 'Calculez k et b avant de les appliquer.';
+      return;
+    }
+    applyValuesToRow(selectedRow, lastComputation.k, lastComputation.b);
+  }
+
+  function resetAssistant() {
+    document.getElementById('hardwareProfile').selectedIndex = 0;
+    document.getElementById('rawMin').value = hardwareProfiles[0].rawMin;
+    document.getElementById('rawMax').value = hardwareProfiles[0].rawMax;
+    document.getElementById('physMin').value = 0;
+    document.getElementById('physMax').value = 1;
+    document.getElementById('assistantResult').textContent = 'Complétez les champs ci-dessus pour obtenir la formule.';
+    lastComputation = null;
+  }
+
+  populateProfiles();
   refresh();
   </script>
 </body>
