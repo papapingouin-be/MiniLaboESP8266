@@ -28,77 +28,84 @@
     <a href="writequeue.html">FileQueue</a>
   </nav>
   <p>Bienvenue sur votre MiniLabo. Utilisez le menu ci‑dessus pour accéder aux différents modules.</p>
-
   <!-- Modal de connexion PIN -->
-  <div id="login-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:1000;">
-    <div style="background:#0f1522; border:1px solid #1b2636; padding:20px; border-radius:8px; width:300px; text-align:center;">
-      <h2>Connexion</h2>
-      <p>Entrez le code PIN pour accéder au MiniLabo.</p>
-      <input id="pin-input" type="password" maxlength="6" style="width:100%; padding:8px; border-radius:4px; border:1px solid #334155; background:#0c121b; color:#e5e7eb;">
-      <div id="login-error" style="color:#f87171; font-size:12px; margin-top:6px; min-height:18px;"></div>
-      <button id="login-btn" style="margin-top:10px; padding:8px 14px; border:none; background:#36d399; color:#0b1220; border-radius:4px; cursor:pointer;">Se connecter</button>
+  <div id="login-modal" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:1000;">
+    <div style="background:#0f172a; border:1px solid #243047; border-radius:12px; padding:16px; width:320px; color:#e5e7eb;">
+      <h3 style="margin:0 0 8px 0;">Connexion</h3>
+      <p style="margin:0 0 10px 0; color:#94a3b8;">Entrez le code PIN de session.</p>
+      <input id="pin-input" type="password" maxlength="6"
+            style="width:100%; padding:8px; border-radius:8px; border:1px solid #334155; background:#0c121b; color:#e5e7eb">
+      <div id="login-error" style="margin-top:8px; min-height:18px; color:#fca5a5;"></div>
+      <div style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end;">
+        <button id="login-cancel" type="button"
+                style="padding:8px 12px; border-radius:8px; border:1px solid #334155; background:#0b1220; color:#e5e7eb;">Annuler</button>
+        <button id="login-submit" type="button"
+                style="padding:8px 12px; border-radius:8px; border:1px solid #1f3b2f; background:#13261d; color:#bff6dd;">Valider</button>
+      </div>
     </div>
   </div>
 
-  <script>
-    // Simple cookie helper
-    function getCookie(name) {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop().split(';').shift();
+ <script>
+(function(){
+  const modal   = document.getElementById('login-modal');
+  const input   = document.getElementById('pin-input');
+  const submit  = document.getElementById('login-submit');
+  const cancelB = document.getElementById('login-cancel');
+  const errorEl = document.getElementById('login-error');
+
+  function hasValidCookie() {
+    // simple cookie flag; adapte si tu génères un token
+    return document.cookie.split('; ').some(c => c.startsWith('mlsession=1'));
+  }
+  function setCookieOK() {
+    document.cookie = "mlsession=1; Max-Age=86400; Path=/; SameSite=Lax";
+  }
+  function showModal(){ modal.style.display = 'flex'; input.value=''; errorEl.textContent=''; setTimeout(()=>input.focus(), 50); }
+  function hideModal(){ modal.style.display = 'none'; }
+
+  async function doLogin() {
+    let pin = (input.value||'').trim();
+    while(pin.length < 4) pin = '0' + pin;  // padding 4 digits
+    errorEl.textContent = '';
+
+    // ENVOI JSON + lecture UNE fois
+    let resp, data;
+    try {
+      resp = await fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ pin })
+      });
+      // Lis la réponse une seule fois (pas de double .json())
+      const text = await resp.text();
+      try { data = JSON.parse(text); } catch(e){ data = { ok:false, error:'bad json', raw:text }; }
+    } catch (e) {
+      errorEl.textContent = 'Erreur réseau. ('+ e +')';
+      return;
     }
-    function setCookie(name, value, days) {
-      let expires = '';
-      if (days) {
-        const d = new Date();
-        d.setTime(d.getTime() + (days*24*60*60*1000));
-        expires = `; expires=${d.toUTCString()}`;
-      }
-      document.cookie = `${name}=${value || ''}${expires}; path=/`;
+
+    if (resp.ok && data && data.ok === true) {
+      setCookieOK();
+      hideModal();
+    } else {
+      errorEl.textContent = (data && data.error) ? ('PIN invalide ('+data.error+')') : 'PIN invalide';
     }
-    // Show login modal if session cookie absent
-    function checkLogin() {
-      const session = getCookie('mlsession');
-      if (!session) {
-        document.getElementById('login-modal').style.display = 'flex';
-      }
-    }
-    async function attemptLogin() {
-      const pin = document.getElementById('pin-input').value.trim();
-      if (!pin) {
-        document.getElementById('login-error').textContent = 'Veuillez saisir le PIN.';
-        return;
-      }
-      try {
-        const r = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin })
-        });
-        const resp = await r.json();
-        if (resp.ok) {
-          // Generate a simple session token and set cookie
-          const token = Math.random().toString(36).substr(2);
-          setCookie('mlsession', token, 1);
-          document.getElementById('login-modal').style.display = 'none';
-          document.getElementById('login-error').textContent = '';
-          document.getElementById('pin-input').value = '';
-        } else {
-          document.getElementById('login-error').textContent = resp.error || 'Erreur.';
-        }
-      } catch (e) {
-        document.getElementById('login-error').textContent = 'Erreur réseau';
-      }
-    }
-    document.getElementById('login-btn').addEventListener('click', attemptLogin);
-    // On Enter key press, trigger login
-    document.getElementById('pin-input').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        attemptLogin();
-      }
-    });
-    // Check login on page load
-    window.addEventListener('load', checkLogin);
-  </script>
+  }
+
+  // Ouvre le modal si pas de cookie
+  window.addEventListener('DOMContentLoaded', ()=>{
+    if (!hasValidCookie()) showModal();
+  });
+
+  // Bind
+  submit.addEventListener('click', doLogin);
+  cancelB.addEventListener('click', hideModal);
+  input.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') doLogin(); });
+
+  // Option: touche ESC pour fermer
+  document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape' && modal.style.display === 'flex') hideModal(); });
+})();
+</script>
+
 </body>
 </html>

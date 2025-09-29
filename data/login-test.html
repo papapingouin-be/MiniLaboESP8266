@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><title>Login Test</title>
+<style>
+  body{font-family:system-ui,Arial;margin:20px;color:#e5e7eb;background:#0b0f16}
+  .box{background:#0f172a;border:1px solid #243047;border-radius:10px;padding:16px;max-width:520px}
+  input{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0c121b;color:#e5e7eb}
+  button{margin-top:10px;padding:10px 14px;border-radius:8px;border:1px solid #334155;background:#142034;color:#e5e7eb;cursor:pointer}
+  pre{white-space:pre-wrap;background:#0b1220;padding:10px;border-radius:8px;border:1px solid #243047}
+</style>
+</head>
+<body>
+  <div class="box">
+    <h2>Test /api/login</h2>
+    <p>Entrez votre PIN et cliquez sur « Tester ». Le résultat brut de l’ESP s’affiche.</p>
+    <input id="pin" type="text" maxlength="6" placeholder="1234">
+    <button id="go">Tester</button>
+    <h3>Requête envoyée</h3>
+    <pre id="sent"></pre>
+    <h3>Réponse reçue</h3>
+    <pre id="recv"></pre>
+    <h3>Statut</h3>
+    <pre id="status"></pre>
+  </div>
+<script>
+const $=s=>document.querySelector(s);
+$('#go').onclick = async ()=>{
+  let pin = $('#pin').value.trim();
+  while(pin.length<4) pin='0'+pin;
+  const body = JSON.stringify({pin});
+  $('#sent').textContent = body;
+  try{
+    const r = await fetch('/api/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body
+    });
+    const txt = await r.text();
+    $('#recv').textContent = txt;
+    $('#status').textContent = 'HTTP '+r.status+(r.ok?' OK':' (non OK)');
+  }catch(e){
+    $('#recv').textContent = '';
+    $('#status').textContent = 'Erreur réseau: '+e;
+  }
+};
+</script>
+</body>
+</html>
