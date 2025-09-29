@@ -40,28 +40,52 @@ IORegistry::~IORegistry() {
 void IORegistry::begin(ConfigStore *config) {
   m_config = config;
   m_channelCount = 0;
+
+  if (!m_config) {
+    if (m_logger)
+      m_logger->error("IORegistry.begin called without ConfigStore");
+    return;
+  }
+
   // Read configuration from io.json. The expected format is an array of
   // objects, each with at least an "id" and "type" field. Optional
   // fields include "index" (ADC channel number) and calibration
   // coefficients "k" and "b". If the file is missing or empty no
   // channels will be configured.
   JsonDocument &doc = m_config->getConfig("io");
-  if (doc.is<JsonArray>()) {
-    JsonArray arr = doc.as<JsonArray>();
-    for (JsonVariant v : arr) {
-      if (m_channelCount >= kMaxChannels) break;
-      if (!v.is<JsonObject>()) continue;
-      JsonObject obj = v.as<JsonObject>();
-      Channel &ch = m_channels[m_channelCount++];
-      ch.id = obj["id"] | String("ch") + String(m_channelCount);
-      ch.type = obj["type"] | "a0";
-      ch.index = obj["index"] | 0;
-      ch.k = obj["k"] | 1.0;
-      ch.b = obj["b"] | 0.0;
-      const char *unit = obj["unit"] | "";
-      ch.unit = unit;
+  if (!doc.is<JsonArray>()) {
+    if (m_logger)
+      m_logger->warning("io.json missing or invalid; no IO channels configured");
+    return;
+  }
+
+  JsonArray arr = doc.as<JsonArray>();
+  for (JsonVariant v : arr) {
+    if (m_channelCount >= kMaxChannels)
+      break;
+    if (!v.is<JsonObject>())
+      continue;
+    JsonObject obj = v.as<JsonObject>();
+    Channel &ch = m_channels[m_channelCount++];
+    ch.id = obj["id"] | String("ch") + String(m_channelCount);
+    ch.type = obj["type"] | "a0";
+    ch.index = obj["index"] | 0;
+    ch.k = obj["k"] | 1.0;
+    ch.b = obj["b"] | 0.0;
+    const char *unit = obj["unit"] | "";
+    ch.unit = unit;
+    if (m_logger) {
+      String msg = String("IO channel ") + ch.id + " type=" + ch.type +
+                   " index=" + String(ch.index);
+      m_logger->info(msg);
     }
   }
+
+  if (m_logger) {
+    m_logger->info(String("Configured ") + String(m_channelCount) +
+                   String(" IO channel(s)"));
+  }
+
   // Determine if ADS1115 is required
   bool needAds = false;
   for (size_t i = 0; i < m_channelCount; i++) {
@@ -148,24 +172,25 @@ void IORegistry::describeHardware(JsonDocument &doc) {
   a0["label"] = "ADC interne A0";
   a0["defaultId"] = "A0";
   a0["defaultUnit"] = "V";
+  a0["available"] = true;
   JsonArray a0Indexes = a0.createNestedArray("indexes");
   JsonObject a0Index = a0Indexes.createNestedObject();
   a0Index["value"] = 0;
   a0Index["label"] = "A0";
 
-  if (ensureAdsReady()) {
-    JsonObject ads = locals.createNestedObject();
-    ads["type"] = "ads1115";
-    ads["label"] = "ADS1115";
-    ads["defaultId"] = "ADS";
-    ads["defaultUnit"] = "V";
-    JsonArray adsIndexes = ads.createNestedArray("indexes");
-    const char *labels[] = {"A0", "A1", "A2", "A3"};
-    for (uint8_t i = 0; i < 4; i++) {
-      JsonObject idx = adsIndexes.createNestedObject();
-      idx["value"] = i;
-      idx["label"] = labels[i];
-    }
+  bool adsAvailable = ensureAdsReady();
+  JsonObject ads = locals.createNestedObject();
+  ads["type"] = "ads1115";
+  ads["label"] = "ADS1115";
+  ads["defaultId"] = "ADS";
+  ads["defaultUnit"] = "V";
+  ads["available"] = adsAvailable;
+  JsonArray adsIndexes = ads.createNestedArray("indexes");
+  const char *labels[] = {"A0", "A1", "A2", "A3"};
+  for (uint8_t i = 0; i < 4; i++) {
+    JsonObject idx = adsIndexes.createNestedObject();
+    idx["value"] = i;
+    idx["label"] = labels[i];
   }
 }
 
