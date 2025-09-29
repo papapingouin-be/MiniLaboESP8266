@@ -28,7 +28,7 @@ bool beginAdsDevice(T *ads) {
 
 IORegistry::IORegistry(Logger *logger)
     : m_channelCount(0), m_logger(logger), m_config(nullptr), m_ads(nullptr),
-      m_adsInitialized(false) {}
+      m_adsInitialized(false), m_adsAttempted(false) {}
 
 IORegistry::~IORegistry() {
   if (m_ads) {
@@ -58,6 +58,8 @@ void IORegistry::begin(ConfigStore *config) {
       ch.index = obj["index"] | 0;
       ch.k = obj["k"] | 1.0;
       ch.b = obj["b"] | 0.0;
+      const char *unit = obj["unit"] | "";
+      ch.unit = unit;
     }
   }
   // Determine if ADS1115 is required
@@ -69,16 +71,7 @@ void IORegistry::begin(ConfigStore *config) {
     }
   }
   if (needAds) {
-    m_ads = new Adafruit_ADS1115();
-    if (beginAdsDevice(m_ads)) {
-      // Use the default gain of +/-4.096V (1 bit = 0.125mV)
-      m_ads->setGain(GAIN_ONE);
-      m_adsInitialized = true;
-      if (m_logger) m_logger->info("ADS1115 initialized");
-    } else {
-      m_adsInitialized = false;
-      if (m_logger) m_logger->error("ADS1115 init failed");
-    }
+    ensureAdsReady();
   }
 }
 
@@ -92,12 +85,14 @@ int32_t IORegistry::readRaw(const String &id) {
         int raw = analogRead(A0);
         return raw;
       } else if (ch.type == "ads1115") {
-        if (m_adsInitialized) {
+        if (!m_adsInitialized) {
+          ensureAdsReady();
+        }
+        if (m_adsInitialized && ch.index < 4) {
           int16_t val = m_ads->readADC_SingleEnded(ch.index);
           return (int32_t)val;
-        } else {
-          return 0;
         }
+        return 0;
       } else {
         // Unknown type; return zero
         return 0;
@@ -120,4 +115,74 @@ float IORegistry::convert(const String &id, int32_t raw) {
 float IORegistry::readValue(const String &id) {
   int32_t raw = readRaw(id);
   return convert(id, raw);
+}
+
+bool IORegistry::ensureAdsReady() {
+  if (!m_ads) {
+    m_ads = new Adafruit_ADS1115();
+    m_adsInitialized = false;
+    m_adsAttempted = false;
+  }
+  if (m_adsAttempted) {
+    return m_adsInitialized;
+  }
+  m_adsAttempted = true;
+  if (beginAdsDevice(m_ads)) {
+    // Use the default gain of +/-4.096V (1 bit = 0.125mV)
+    m_ads->setGain(GAIN_ONE);
+    m_adsInitialized = true;
+    if (m_logger) m_logger->info("ADS1115 initialized");
+  } else {
+    m_adsInitialized = false;
+    if (m_logger) m_logger->warning("ADS1115 init failed");
+  }
+  return m_adsInitialized;
+}
+
+void IORegistry::describeHardware(JsonDocument &doc) {
+  doc.clear();
+  JsonArray locals = doc.createNestedArray("localInputs");
+
+  JsonObject a0 = locals.createNestedObject();
+  a0["type"] = "a0";
+  a0["label"] = "ADC interne A0";
+  a0["defaultId"] = "A0";
+  a0["defaultUnit"] = "V";
+  JsonArray a0Indexes = a0.createNestedArray("indexes");
+  JsonObject a0Index = a0Indexes.createNestedObject();
+  a0Index["value"] = 0;
+  a0Index["label"] = "A0";
+
+  if (ensureAdsReady()) {
+    JsonObject ads = locals.createNestedObject();
+    ads["type"] = "ads1115";
+    ads["label"] = "ADS1115";
+    ads["defaultId"] = "ADS";
+    ads["defaultUnit"] = "V";
+    JsonArray adsIndexes = ads.createNestedArray("indexes");
+    const char *labels[] = {"A0", "A1", "A2", "A3"};
+    for (uint8_t i = 0; i < 4; i++) {
+      JsonObject idx = adsIndexes.createNestedObject();
+      idx["value"] = i;
+      idx["label"] = labels[i];
+    }
+  }
+}
+
+void IORegistry::snapshot(JsonDocument &doc) {
+  doc.clear();
+  JsonArray arr = doc.createNestedArray("channels");
+  for (size_t i = 0; i < m_channelCount; i++) {
+    const Channel &ch = m_channels[i];
+    JsonObject obj = arr.createNestedObject();
+    obj["id"] = ch.id;
+    obj["type"] = ch.type;
+    obj["index"] = ch.index;
+    obj["k"] = ch.k;
+    obj["b"] = ch.b;
+    obj["unit"] = ch.unit;
+    int32_t raw = readRaw(ch.id);
+    obj["raw"] = raw;
+    obj["value"] = convert(ch.id, raw);
+  }
 }

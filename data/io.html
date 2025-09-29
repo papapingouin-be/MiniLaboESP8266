@@ -252,12 +252,17 @@
             <th>Index</th>
             <th>k</th>
             <th>b</th>
+            <th>Valeur calculée</th>
+            <th>Unité</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
         </tbody>
       </table>
+      <datalist id="channelTypeOptions"></datalist>
       <div class="actions">
+        <button type="button" onclick="addRow()">Ajouter une ligne</button>
         <button type="button" onclick="refresh()">Rafraîchir</button>
         <button type="button" onclick="save()">Enregistrer</button>
       </div>
@@ -369,8 +374,29 @@
     }
   ];
 
+  const DEFAULT_LOCAL_INPUTS = [
+    {
+      type: 'a0',
+      label: 'ADC interne A0',
+      defaultId: 'A0',
+      defaultUnit: 'V',
+      indexes: [{ value: 0, label: 'A0' }]
+    }
+  ];
+  const EXTRA_TYPES = [
+    { type: 'udp-in', label: 'UDP entrant' },
+    { type: 'udp-out', label: 'UDP sortant' },
+    { type: 'udp', label: 'UDP' },
+    { type: 'math', label: 'Calcul mathématique' }
+  ];
+  const TYPE_DATALIST_ID = 'channelTypeOptions';
+
   let selectedRow = null;
   let lastComputation = null;
+  let capabilities = { localInputs: DEFAULT_LOCAL_INPUTS.map(normalizeLocalInput) };
+  let hardwarePromise = null;
+  let snapshotTimer = null;
+  let latestSnapshotRaw = new Map();
 
   function populateProfiles() {
     const select = document.getElementById('hardwareProfile');
@@ -397,6 +423,175 @@
     });
   }
 
+  function normalizeLocalInput(entry) {
+    const source = entry && typeof entry === 'object' ? entry : {};
+    const type =
+      typeof source.type === 'string' && source.type.trim().length
+        ? source.type.trim()
+        : 'a0';
+    const label =
+      typeof source.label === 'string' && source.label.trim().length
+        ? source.label.trim()
+        : type.toUpperCase();
+    const defaultId =
+      typeof source.defaultId === 'string' && source.defaultId.trim().length
+        ? source.defaultId.trim()
+        : label.replace(/\s+/g, '');
+    const defaultUnit =
+      typeof source.defaultUnit === 'string' ? source.defaultUnit : '';
+    const indexes = [];
+    if (Array.isArray(source.indexes) && source.indexes.length) {
+      const seen = new Set();
+      source.indexes.forEach(item => {
+        if (!item) return;
+        const numeric = Number(item.value);
+        const value = Number.isFinite(numeric)
+          ? numeric
+          : Number(parseInt(item.value, 10));
+        const indexValue = Number.isFinite(value) ? value : 0;
+        if (seen.has(indexValue)) return;
+        seen.add(indexValue);
+        const labelText =
+          typeof item.label === 'string' && item.label.trim().length
+            ? item.label.trim()
+            : String(indexValue);
+        indexes.push({ value: indexValue, label: labelText });
+      });
+    }
+    if (!indexes.length) {
+      indexes.push({ value: 0, label: '0' });
+    }
+    return { type, label, defaultId, defaultUnit, indexes };
+  }
+
+  function ensureHardwareCapabilities() {
+    if (!hardwarePromise) {
+      hardwarePromise = fetchHardwareCapabilities();
+    }
+    return hardwarePromise;
+  }
+
+  async function fetchHardwareCapabilities() {
+    let locals = [];
+    try {
+      const res = await fetch('/api/io/hardware');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.localInputs) && data.localInputs.length) {
+          locals = data.localInputs.map(normalizeLocalInput);
+        }
+      }
+    } catch (err) {
+      // Ignore network errors and fall back to defaults.
+    }
+    if (!locals.length) {
+      locals = DEFAULT_LOCAL_INPUTS.map(normalizeLocalInput);
+    }
+    capabilities.localInputs = locals;
+    updateTypeDatalist();
+    return capabilities;
+  }
+
+  function updateTypeDatalist() {
+    const datalist = document.getElementById(TYPE_DATALIST_ID);
+    if (!datalist) return;
+    datalist.innerHTML = '';
+    const seen = new Set();
+    capabilities.localInputs.forEach(cap => {
+      const option = document.createElement('option');
+      option.value = cap.type;
+      option.label = cap.label;
+      datalist.appendChild(option);
+      seen.add(cap.type);
+    });
+    EXTRA_TYPES.forEach(extra => {
+      if (seen.has(extra.type)) return;
+      const option = document.createElement('option');
+      option.value = extra.type;
+      option.label = extra.label;
+      datalist.appendChild(option);
+      seen.add(extra.type);
+    });
+  }
+
+  function ensureTypeOption(type, label) {
+    if (!type) return;
+    const datalist = document.getElementById(TYPE_DATALIST_ID);
+    if (!datalist) return;
+    const value = type.trim();
+    if (!value.length) return;
+    const exists = Array.from(datalist.options).some(
+      option => option.value === value
+    );
+    if (exists) return;
+    const option = document.createElement('option');
+    option.value = value;
+    if (label && label.trim().length) option.label = label.trim();
+    datalist.appendChild(option);
+  }
+
+  function findCapability(type) {
+    if (!type) return null;
+    const value = type.trim();
+    return capabilities.localInputs.find(cap => cap.type === value) || null;
+  }
+
+  function buildDefaultId(capability, indexValue) {
+    if (!capability) return '';
+    const base = capability.defaultId || capability.type || 'CH';
+    const indexes = capability.indexes || [];
+    const numericIndex = Number.isFinite(indexValue) ? indexValue : 0;
+    if (indexes.length > 1) {
+      return base + numericIndex;
+    }
+    return base;
+  }
+
+  function collectExistingIds(excludeRow) {
+    const ids = new Set();
+    document.querySelectorAll('#ioTable tbody tr').forEach(row => {
+      if (row === excludeRow) return;
+      const input = row.querySelector('td[data-field="id"] input');
+      const value = input ? input.value.trim() : '';
+      if (value.length) {
+        ids.add(value);
+      }
+    });
+    return ids;
+  }
+
+  function generateUniqueId(base, excludeRow) {
+    const cleanBase = base && base.trim().length ? base.trim() : 'ch';
+    const existing = collectExistingIds(excludeRow);
+    if (!existing.has(cleanBase)) {
+      return cleanBase;
+    }
+    let counter = 1;
+    let candidate;
+    do {
+      candidate = `${cleanBase}-${counter}`;
+      counter += 1;
+    } while (existing.has(candidate));
+    return candidate;
+  }
+
+  function getRowId(tr) {
+    if (!tr) return 'aucune';
+    const input = tr.querySelector('td[data-field="id"] input');
+    const value = input ? input.value.trim() : '';
+    return value.length ? value : '(sans ID)';
+  }
+
+  function updateSelectedLabel(value) {
+    const el = document.getElementById('selectedChannel');
+    if (!el) return;
+    if (!value || value === 'aucune') {
+      el.textContent = 'aucune';
+    } else {
+      el.textContent = value;
+    }
+  }
+
   function attachRowHandlers(tr) {
     tr.addEventListener('click', () => {
       if (selectedRow) {
@@ -404,8 +599,7 @@
       }
       selectedRow = tr;
       selectedRow.classList.add('selected');
-      const id = tr.querySelector('td:nth-child(1) input').value || '(sans ID)';
-      document.getElementById('selectedChannel').textContent = id;
+      updateSelectedLabel(getRowId(tr));
       if (lastComputation) {
         applyValuesToRow(tr, lastComputation.k, lastComputation.b);
       }
@@ -413,38 +607,391 @@
   }
 
   function applyValuesToRow(tr, k, b) {
-    const inputs = tr.querySelectorAll('td input');
-    if (inputs.length >= 5) {
-      inputs[3].value = Number.isFinite(k) ? Number(k.toFixed(6)) : '';
-      inputs[4].value = Number.isFinite(b) ? Number(b.toFixed(6)) : '';
+    const kInput = tr.querySelector('td[data-field="k"] input');
+    const bInput = tr.querySelector('td[data-field="b"] input');
+    if (kInput) {
+      kInput.value = Number.isFinite(k) ? Number(k.toFixed(6)) : '';
+    }
+    if (bInput) {
+      bInput.value = Number.isFinite(b) ? Number(b.toFixed(6)) : '';
+    }
+    refreshValueColumn();
+  }
+
+  function updateIndexEditor(tr, type, desiredIndex) {
+    const indexCell = tr.querySelector('td[data-field="index"]');
+    if (!indexCell) return null;
+    const capability = findCapability(type);
+    const idInput = tr.querySelector('td[data-field="id"] input');
+    const previous = indexCell.querySelector('select, input');
+    let fallback = Number.isFinite(desiredIndex) ? desiredIndex : null;
+    if (fallback === null && previous) {
+      const parsed = parseInt(previous.value, 10);
+      if (Number.isFinite(parsed)) {
+        fallback = parsed;
+      }
+    }
+    indexCell.innerHTML = '';
+    let editor;
+    if (capability && capability.indexes.length) {
+      editor = document.createElement('select');
+      capability.indexes.forEach(entry => {
+        const option = document.createElement('option');
+        option.value = String(entry.value);
+        option.textContent = entry.label;
+        editor.appendChild(option);
+      });
+      let target = Number.isFinite(fallback) ? fallback : capability.indexes[0].value;
+      if (!capability.indexes.some(entry => entry.value === target)) {
+        target = capability.indexes[0].value;
+      }
+      editor.value = String(target);
+    } else {
+      editor = document.createElement('input');
+      editor.type = 'number';
+      editor.step = '1';
+      editor.min = '0';
+      const value = Number.isFinite(fallback) ? fallback : 0;
+      editor.value = String(value);
+    }
+    const onChange = () => {
+      if (capability && idInput && idInput.dataset.autogenerated !== 'false') {
+        const idxValue = parseInt(editor.value, 10);
+        const baseId = buildDefaultId(capability, idxValue);
+        idInput.value = generateUniqueId(baseId, tr);
+        idInput.dataset.autogenerated = 'true';
+        if (selectedRow === tr) {
+          updateSelectedLabel(getRowId(tr));
+        }
+      }
+      refreshValueColumn();
+    };
+    editor.addEventListener('change', onChange);
+    editor.addEventListener('input', onChange);
+    indexCell.appendChild(editor);
+    return editor;
+  }
+
+  function handleTypeChange(tr, typeInput, options = {}) {
+    const type = (typeInput.value || '').trim();
+    const capability = findCapability(type);
+    ensureTypeOption(
+      type,
+      capability ? capability.label : type
+    );
+    const indexEditor = updateIndexEditor(tr, type, options.index);
+    const idInput = tr.querySelector('td[data-field="id"] input');
+    if (idInput && capability && (options.generateId || idInput.dataset.autogenerated !== 'false' || !idInput.value.trim().length)) {
+      const idxValue = indexEditor ? parseInt(indexEditor.value, 10) : 0;
+      const baseId = buildDefaultId(capability, idxValue);
+      idInput.value = generateUniqueId(baseId, tr);
+      idInput.dataset.autogenerated = 'true';
+      if (selectedRow === tr) {
+        updateSelectedLabel(getRowId(tr));
+      }
+    } else if (idInput && !capability && options.generateId && idInput.dataset.autogenerated !== 'false') {
+      const base = type.length ? type.toUpperCase() : 'CH';
+      idInput.value = generateUniqueId(base, tr);
+      idInput.dataset.autogenerated = 'true';
+      if (selectedRow === tr) {
+        updateSelectedLabel(getRowId(tr));
+      }
+    }
+    const unitInput = tr.querySelector('td[data-field="unit"] input');
+    if (unitInput) {
+      if (capability && (options.forceUnit || unitInput.dataset.autofill !== 'false' || !unitInput.value.trim().length)) {
+        unitInput.value = capability.defaultUnit || '';
+        unitInput.dataset.autofill = 'true';
+      } else if (!capability && options.forceUnit && unitInput.dataset.autofill !== 'false') {
+        unitInput.value = '';
+        unitInput.dataset.autofill = 'true';
+      }
+    }
+    refreshValueColumn();
+  }
+
+  function removeRow(tr) {
+    if (!tr) return;
+    if (selectedRow === tr) {
+      selectedRow.classList.remove('selected');
+      selectedRow = null;
+      updateSelectedLabel(null);
+    }
+    tr.remove();
+    updateTableStatus();
+    refreshValueColumn();
+  }
+
+  function formatNumber(value) {
+    if (!Number.isFinite(value)) return '—';
+    if (Math.abs(value) >= 1000) {
+      return value.toPrecision(4);
+    }
+    if (Math.abs(value) > 0 && Math.abs(value) < 0.001) {
+      return value.toExponential(2);
+    }
+    return value.toFixed(3);
+  }
+
+  function refreshValueColumn() {
+    const rows = document.querySelectorAll('#ioTable tbody tr');
+    rows.forEach(tr => {
+      const idInput = tr.querySelector('td[data-field="id"] input');
+      const valueSpan = tr.querySelector('td[data-field="value"] span');
+      if (!valueSpan || !idInput) {
+        if (valueSpan) valueSpan.textContent = '—';
+        return;
+      }
+      const id = idInput.value.trim();
+      if (!id.length || !latestSnapshotRaw.has(id)) {
+        valueSpan.textContent = '—';
+        return;
+      }
+      const raw = latestSnapshotRaw.get(id);
+      if (!Number.isFinite(raw)) {
+        valueSpan.textContent = '—';
+        return;
+      }
+      const kInput = tr.querySelector('td[data-field="k"] input');
+      const bInput = tr.querySelector('td[data-field="b"] input');
+      const kVal = kInput ? parseFloat(kInput.value) : NaN;
+      const bVal = bInput ? parseFloat(bInput.value) : NaN;
+      if (!Number.isFinite(kVal) || !Number.isFinite(bVal)) {
+        valueSpan.textContent = '—';
+        return;
+      }
+      const computed = kVal * raw + bVal;
+      valueSpan.textContent = formatNumber(computed);
+    });
+  }
+
+  async function updateSnapshot() {
+    try {
+      const res = await fetch('/api/io/snapshot');
+      if (!res.ok) throw new Error('snapshot failed');
+      const data = await res.json();
+      const map = new Map();
+      if (data && Array.isArray(data.channels)) {
+        data.channels.forEach(ch => {
+          if (!ch || typeof ch.id !== 'string') return;
+          const raw = Number(ch.raw);
+          if (Number.isFinite(raw)) {
+            map.set(ch.id, raw);
+          }
+        });
+      }
+      latestSnapshotRaw = map;
+    } catch (err) {
+      // Keep previous snapshot on error.
+    }
+    refreshValueColumn();
+  }
+
+  function startSnapshotPolling() {
+    if (snapshotTimer) return;
+    snapshotTimer = setInterval(updateSnapshot, 4000);
+  }
+
+  function updateTableStatus(message) {
+    const status = document.getElementById('status');
+    if (!status) return;
+    if (message) {
+      status.textContent = message;
+      return;
+    }
+    const tbody = document.querySelector('#ioTable tbody');
+    if (tbody && tbody.children.length === 0) {
+      status.textContent = 'Aucun canal n’est configuré pour le moment.';
+    } else {
+      status.textContent = '';
     }
   }
 
+  function createRow(data = {}) {
+    const tr = document.createElement('tr');
+
+    const idCell = document.createElement('td');
+    idCell.dataset.field = 'id';
+    const idInput = document.createElement('input');
+    idInput.type = 'text';
+    idInput.placeholder = 'Identifiant';
+    idCell.appendChild(idInput);
+    tr.appendChild(idCell);
+
+    const typeCell = document.createElement('td');
+    typeCell.dataset.field = 'type';
+    const typeInput = document.createElement('input');
+    typeInput.type = 'text';
+    typeInput.setAttribute('list', TYPE_DATALIST_ID);
+    typeInput.placeholder = 'Type';
+    typeCell.appendChild(typeInput);
+    tr.appendChild(typeCell);
+
+    const indexCell = document.createElement('td');
+    indexCell.dataset.field = 'index';
+    tr.appendChild(indexCell);
+
+    const kCell = document.createElement('td');
+    kCell.dataset.field = 'k';
+    const kInput = document.createElement('input');
+    kInput.type = 'number';
+    kInput.step = '0.000001';
+    kInput.value = Number.isFinite(data.k) ? data.k : 0;
+    kCell.appendChild(kInput);
+    tr.appendChild(kCell);
+
+    const bCell = document.createElement('td');
+    bCell.dataset.field = 'b';
+    const bInput = document.createElement('input');
+    bInput.type = 'number';
+    bInput.step = '0.001';
+    bInput.value = Number.isFinite(data.b) ? data.b : 0;
+    bCell.appendChild(bInput);
+    tr.appendChild(bCell);
+
+    const valueCell = document.createElement('td');
+    valueCell.dataset.field = 'value';
+    const valueSpan = document.createElement('span');
+    valueSpan.textContent = '—';
+    valueCell.appendChild(valueSpan);
+    tr.appendChild(valueCell);
+
+    const unitCell = document.createElement('td');
+    unitCell.dataset.field = 'unit';
+    const unitInput = document.createElement('input');
+    unitInput.type = 'text';
+    unitInput.placeholder = 'ex : V';
+    unitCell.appendChild(unitInput);
+    tr.appendChild(unitCell);
+
+    const actionsCell = document.createElement('td');
+    actionsCell.dataset.field = 'actions';
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = 'Supprimer';
+    removeBtn.addEventListener('click', event => {
+      event.stopPropagation();
+      removeRow(tr);
+    });
+    actionsCell.appendChild(removeBtn);
+    tr.appendChild(actionsCell);
+
+    const initialType =
+      typeof data.type === 'string' && data.type.trim().length
+        ? data.type.trim()
+        : (capabilities.localInputs[0]
+            ? capabilities.localInputs[0].type
+            : (EXTRA_TYPES[0] ? EXTRA_TYPES[0].type : ''));
+    typeInput.value = initialType;
+    const capability = findCapability(initialType);
+    ensureTypeOption(
+      initialType,
+      capability ? capability.label : initialType
+    );
+
+    const desiredIndex =
+      Number.isFinite(data.index)
+        ? data.index
+        : (capability && capability.indexes.length
+            ? capability.indexes[0].value
+            : 0);
+    const indexEditor = updateIndexEditor(tr, initialType, desiredIndex);
+
+    const baseId = capability
+      ? buildDefaultId(
+          capability,
+          indexEditor ? parseInt(indexEditor.value, 10) : desiredIndex
+        )
+      : (initialType ? initialType.toUpperCase() : 'CH');
+    const hasId = typeof data.id === 'string' && data.id.trim().length;
+    idInput.value = hasId ? data.id : generateUniqueId(baseId, tr);
+    idInput.dataset.autogenerated = hasId ? 'false' : 'true';
+
+    const hasUnit = Object.prototype.hasOwnProperty.call(data, 'unit');
+    const initialUnit = hasUnit
+      ? (data.unit || '')
+      : (capability ? capability.defaultUnit || '' : '');
+    unitInput.value = initialUnit;
+    unitInput.dataset.autofill = hasUnit && data.unit ? 'false' : 'true';
+
+    idInput.addEventListener('input', () => {
+      idInput.dataset.autogenerated = idInput.value.trim().length ? 'false' : 'true';
+      if (selectedRow === tr) {
+        updateSelectedLabel(getRowId(tr));
+      }
+      refreshValueColumn();
+    });
+
+    typeInput.addEventListener('input', () => {
+      handleTypeChange(tr, typeInput);
+    });
+    typeInput.addEventListener('change', () => {
+      handleTypeChange(tr, typeInput, { forceUnit: true });
+    });
+
+    kInput.addEventListener('input', refreshValueColumn);
+    bInput.addEventListener('input', refreshValueColumn);
+    unitInput.addEventListener('input', () => {
+      unitInput.dataset.autofill = unitInput.value.trim().length ? 'false' : 'true';
+    });
+
+    attachRowHandlers(tr);
+    return tr;
+  }
+
   async function refresh() {
+    await ensureHardwareCapabilities();
+    const tbody = document.querySelector('#ioTable tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    let channels = [];
+    let loadError = false;
     try {
       const res = await fetch('/api/config?area=io');
-      const data = await res.json();
-      const tbody = document.querySelector('#ioTable tbody');
-      tbody.innerHTML = '';
-      if (Array.isArray(data)) {
-        data.forEach(ch => {
-          const tr = document.createElement('tr');
-          tr.innerHTML =
-            '<td><input type="text" value="' + (ch.id || '') + '" readonly></td>' +
-            '<td><input type="text" value="' + (ch.type || '') + '" readonly></td>' +
-            '<td><input type="number" value="' + (ch.index !== undefined ? ch.index : 0) + '" min="0" step="1"></td>' +
-            '<td><input type="number" value="' + (ch.k !== undefined ? ch.k : 0) + '" step="0.000001"></td>' +
-            '<td><input type="number" value="' + (ch.b !== undefined ? ch.b : 0) + '" step="0.001"></td>';
-          attachRowHandlers(tr);
+      if (!res.ok) throw new Error('config fetch failed');
+      channels = await res.json();
+    } catch (err) {
+      loadError = true;
+      updateTableStatus('Erreur lors du chargement de la configuration IO.');
+    }
+    if (!loadError) {
+      if (Array.isArray(channels)) {
+        channels.forEach(ch => {
+          const tr = createRow(ch || {});
           tbody.appendChild(tr);
         });
       }
-      document.getElementById('status').textContent = '';
-      if (!tbody.children.length) {
-        document.getElementById('status').textContent = 'Aucun canal n’est configuré pour le moment.';
+      if (selectedRow) {
+        selectedRow.classList.remove('selected');
+        selectedRow = null;
       }
-    } catch (e) {
-      document.getElementById('status').textContent = 'Erreur lors du chargement de la configuration IO.';
+      updateSelectedLabel(null);
+      updateTableStatus();
+    }
+    refreshValueColumn();
+    await updateSnapshot();
+    startSnapshotPolling();
+  }
+
+  async function addRow() {
+    await ensureHardwareCapabilities();
+    const tbody = document.querySelector('#ioTable tbody');
+    if (!tbody) return;
+    const defaultCap = capabilities.localInputs[0] || null;
+    const newRow = createRow({
+      type: defaultCap ? defaultCap.type : (EXTRA_TYPES[0] ? EXTRA_TYPES[0].type : ''),
+      index: defaultCap && defaultCap.indexes.length ? defaultCap.indexes[0].value : 0,
+      k: 1,
+      b: 0,
+      unit: defaultCap ? defaultCap.defaultUnit : ''
+    });
+    tbody.appendChild(newRow);
+    updateTableStatus();
+    refreshValueColumn();
+    const idInput = newRow.querySelector('td[data-field="id"] input');
+    if (idInput) {
+      idInput.focus();
+      idInput.select();
     }
   }
 
@@ -452,13 +999,26 @@
     const rows = document.querySelectorAll('#ioTable tbody tr');
     const payload = [];
     rows.forEach(tr => {
-      const cells = tr.querySelectorAll('td input');
-      const id = cells[0].value;
-      const type = cells[1].value;
-      const index = parseInt(cells[2].value, 10);
-      const k = parseFloat(cells[3].value);
-      const b = parseFloat(cells[4].value);
-      payload.push({ id: id, type: type, index: index, k: k, b: b });
+      const idInput = tr.querySelector('td[data-field="id"] input');
+      const typeInput = tr.querySelector('td[data-field="type"] input');
+      const indexEditor = tr.querySelector('td[data-field="index"] select, td[data-field="index"] input');
+      const kInput = tr.querySelector('td[data-field="k"] input');
+      const bInput = tr.querySelector('td[data-field="b"] input');
+      const unitInput = tr.querySelector('td[data-field="unit"] input');
+      const id = idInput ? idInput.value.trim() : '';
+      const type = typeInput ? typeInput.value.trim() : '';
+      const indexValue = indexEditor ? parseInt(indexEditor.value, 10) : 0;
+      const kVal = kInput ? parseFloat(kInput.value) : NaN;
+      const bVal = bInput ? parseFloat(bInput.value) : NaN;
+      const unit = unitInput ? unitInput.value.trim() : '';
+      payload.push({
+        id,
+        type,
+        index: Number.isFinite(indexValue) ? indexValue : 0,
+        k: Number.isFinite(kVal) ? kVal : 0,
+        b: Number.isFinite(bVal) ? bVal : 0,
+        unit
+      });
     });
     try {
       const res = await fetch('/api/config?area=io', {
@@ -467,13 +1027,14 @@
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        document.getElementById('status').textContent = 'Configuration enregistrée.';
+        updateTableStatus('Configuration enregistrée.');
+        await updateSnapshot();
       } else {
         const txt = await res.text();
-        document.getElementById('status').textContent = 'Erreur lors de l’enregistrement : ' + txt;
+        updateTableStatus('Erreur lors de l’enregistrement : ' + txt);
       }
-    } catch (e) {
-      document.getElementById('status').textContent = 'Erreur lors de l’enregistrement de la configuration.';
+    } catch (err) {
+      updateTableStatus('Erreur lors de l’enregistrement de la configuration.');
     }
   }
 
@@ -527,7 +1088,12 @@
   }
 
   populateProfiles();
-  refresh();
+  updateTypeDatalist();
+  ensureHardwareCapabilities()
+    .catch(() => capabilities)
+    .finally(() => {
+      refresh();
+    });
   </script>
 </body>
 </html>
