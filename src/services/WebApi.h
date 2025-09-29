@@ -45,10 +45,11 @@ private:
   void handleDmm();
   void handleFuncGen();
   void handleLogsTail();
+  void handleWifiScan();
 
   // Handle a login request. Accepts a JSON body containing a
   // "pin" field. The provided PIN is compared against the value
-  // stored in the general configuration. If they match, the server
+  // stored in the network configuration. If they match, the server
   // returns {"ok":true}. Otherwise it returns {"ok":false,
   // "error":"invalid pin"}. A real implementation should set a
   // session cookie and manage timeouts; this stub simply checks the
