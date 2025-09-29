@@ -1,0 +1,12 @@
+[
+  {
+    "io": "A0",
+    "mode": "UDC",
+    "decimals": 2
+  },
+  {
+    "io": "ADS0",
+    "mode": "UDC",
+    "decimals": 4
+  }
+]

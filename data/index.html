@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>MiniLabo Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <!--
+    TODO: Implémenter une boîte de dialogue de connexion (popup PIN).
+    À l’ouverture du tableau de bord, vérifier la présence d’un
+    cookie de session. Si absent, afficher un formulaire demandant
+    le code PIN configuré dans general.json. En cas de réussite,
+    stocker un cookie et masquer la popup. Cette logique n’est pas
+    encore implémentée.
+  -->
+</head>
+<body>
+  <h1>MiniLabo Dashboard</h1>
+  <nav>
+    <a href="dmm.html">Multimètre</a>
+    <a href="funcgen.html">Générateur</a>
+    <a href="io.html">Entrées/Sorties</a>
+    <a href="logs.html">Logs</a>
+    <a href="bench.html">BenchTest</a>
+      <a href="devices.html">Console</a>
+    <a href="network.html">Réseau</a>
+    <a href="udp.html">UDP</a>
+    <a href="scope-config.html">Oscillo</a>
+    <a href="writequeue.html">FileQueue</a>
+  </nav>
+  <p>Bienvenue sur votre MiniLabo. Utilisez le menu ci‑dessus pour accéder aux différents modules.</p>
+
+  <!-- Modal de connexion PIN -->
+  <div id="login-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:1000;">
+    <div style="background:#0f1522; border:1px solid #1b2636; padding:20px; border-radius:8px; width:300px; text-align:center;">
+      <h2>Connexion</h2>
+      <p>Entrez le code PIN pour accéder au MiniLabo.</p>
+      <input id="pin-input" type="password" maxlength="6" style="width:100%; padding:8px; border-radius:4px; border:1px solid #334155; background:#0c121b; color:#e5e7eb;">
+      <div id="login-error" style="color:#f87171; font-size:12px; margin-top:6px; min-height:18px;"></div>
+      <button id="login-btn" style="margin-top:10px; padding:8px 14px; border:none; background:#36d399; color:#0b1220; border-radius:4px; cursor:pointer;">Se connecter</button>
+    </div>
+  </div>
+
+  <script>
+    // Simple cookie helper
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+    }
+    function setCookie(name, value, days) {
+      let expires = '';
+      if (days) {
+        const d = new Date();
+        d.setTime(d.getTime() + (days*24*60*60*1000));
+        expires = `; expires=${d.toUTCString()}`;
+      }
+      document.cookie = `${name}=${value || ''}${expires}; path=/`;
+    }
+    // Show login modal if session cookie absent
+    function checkLogin() {
+      const session = getCookie('mlsession');
+      if (!session) {
+        document.getElementById('login-modal').style.display = 'flex';
+      }
+    }
+    async function attemptLogin() {
+      const pin = document.getElementById('pin-input').value.trim();
+      if (!pin) {
+        document.getElementById('login-error').textContent = 'Veuillez saisir le PIN.';
+        return;
+      }
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin })
+        });
+        const resp = await r.json();
+        if (resp.ok) {
+          // Generate a simple session token and set cookie
+          const token = Math.random().toString(36).substr(2);
+          setCookie('mlsession', token, 1);
+          document.getElementById('login-modal').style.display = 'none';
+          document.getElementById('login-error').textContent = '';
+          document.getElementById('pin-input').value = '';
+        } else {
+          document.getElementById('login-error').textContent = resp.error || 'Erreur.';
+        }
+      } catch (e) {
+        document.getElementById('login-error').textContent = 'Erreur réseau';
+      }
+    }
+    document.getElementById('login-btn').addEventListener('click', attemptLogin);
+    // On Enter key press, trigger login
+    document.getElementById('pin-input').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        attemptLogin();
+      }
+    });
+    // Check login on page load
+    window.addEventListener('load', checkLogin);
+  </script>
+</body>
+</html>

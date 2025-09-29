@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="fr">
+<!--
+  devices.html
+
+  Cette page regroupe les quatre appareils principaux du MiniLabo dans
+  une interface unique composée de quatre cadrans : multimètre,
+  générateur de fonctions, oscilloscope et éditeur d’équations
+  mathématiques.  Elle est destinée à servir d’écran de contrôle
+  « console » rappelant un banc de mesures complet.  Chaque cadran
+  fonctionne indépendamment : le multimètre lit les valeurs exposées
+  par l’API DMM, le générateur permet d’ajuster amplitude, offset,
+  fréquence et forme sur une sortie, l’oscilloscope trace un canal en
+  direct et l’éditeur math gère des formules créant des IO
+  dérivées.
+
+  TODO:
+  – Brancher chaque cadran sur les appels API correspondants.  Voir
+    les fonctions loadDmm(), loadIOForFunc(), loadScope() et
+    loadMath() plus bas pour des squelettes d’implémentation.  Ces
+    fonctions interrogent respectivement /api/dmm, /api/io,
+    /api/scope et /api/config?area=math.
+  – Gérer les modes d’affichage du multimètre (binaire et cadran
+    analogique) : seuls les chiffres sont affichés pour l’instant.
+  – Implémenter la mise à jour en temps réel de l’oscilloscope selon
+    la base de temps et l’échelle verticale définies dans
+    scope.json.  Actuellement un auto‑scale basique est utilisé.
+  – Ajouter un panneau de logs ou de messages de statut si
+    nécessaire.
+  – Cette page n’est pas liée par défaut dans index.html ; ajoutez
+    simplement un lien vers devices.html si vous souhaitez
+    l’utiliser comme tableau de bord.
+-->
+<head>
+  <meta charset="utf-8" />
+  <title>MiniLabo — Console 4 cadrans</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0c0f14;
+      --panel:#121722;
+      --panel-2:#0f141d;
+      --bezel:#1a2230;
+      --accent:#36d399;
+      --accent-2:#4cc3ff;
+      --warn:#ffb86b;
+      --danger:#ff6b6b;
+      --text:#e5e7eb;
+      --sub:#98a2b3;
+      --grid:#1f2a3a;
+      --grid-sub:#162030;
+      --shadow: 0 10px 25px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans";
+      background: radial-gradient(1200px 800px at 70% -200px, #111827 0%, #0b0e13 60%, #090c11 100%);
+      color:var(--text);
+    }
+    header{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 20px; border-bottom:1px solid #1f2937;
+      background:linear-gradient(180deg,#101522 0%, #0e1220 100%);
+      position:sticky; top:0; z-index:10;
+    }
+    header h1{margin:0; font-size:18px; letter-spacing:.3px; font-weight:600}
+    header .led{
+      width:10px;height:10px;border-radius:50%;
+      box-shadow:0 0 12px rgba(54,211,153,.55), inset 0 0 4px rgba(0,0,0,.6);
+      background:radial-gradient(circle at 30% 30%, #7fffbf, #11a86e);
+      margin-right:8px; display:inline-block; vertical-align:middle;
+    }
+    .wrap{
+      padding:18px; max-width:1400px; margin:0 auto;
+    }
+    .grid{
+      display:grid; gap:18px;
+      grid-template-columns: repeat(2, minmax(300px, 1fr));
+      grid-auto-rows: minmax(320px, 1fr);
+    }
+    .card{
+      background: linear-gradient(145deg, var(--panel) 0%, var(--panel-2) 100%);
+      border:1px solid #1b2636;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      position:relative; overflow:hidden;
+    }
+    .bezel{
+      position:absolute; inset:0; pointer-events:none;
+      border-radius: var(--radius);
+      box-shadow: inset 0 0 0 2px #0c121b, inset 0 0 0 3px #1e293b, inset 0 0 60px rgba(0,0,0,.35);
+    }
+    .screw{
+      position:absolute; width:10px; height:10px; border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, #a3b2c7, #6d7b91 60%, #425067);
+      box-shadow: inset 0 0 2px rgba(0,0,0,.6); opacity:.65;
+    }
+    .screw::after{
+      content:""; position:absolute; inset:3px 1px 3px 1px; background:#0f1420; transform:rotate(90deg);
+      clip-path: polygon(0 45%,100% 45%,100% 55%,0 55%);
+      opacity:.85;
+    }
+    .screw.tl{top:8px; left:10px}
+    .screw.tr{top:8px; right:10px}
+    .screw.bl{bottom:8px; left:10px}
+    .screw.br{bottom:8px; right:10px}
+
+    .card h2{
+      margin:0; padding:12px 14px; font-size:14px; letter-spacing:.35px; font-weight:600;
+      border-bottom:1px solid #1b2636;
+      background: linear-gradient(180deg,#0f1522,#0c111c);
+      display:flex; align-items:center; gap:10px;
+    }
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; color:#0b1220; background:#b9f6da}
+    .pill.blue{background:#bfe7ff}
+    .content{padding:14px; display:grid; grid-template-columns: 1.2fr .8fr; gap:14px; height:calc(100% - 52px)}
+    .content.single{grid-template-columns: 1fr}
+
+    /* DMM styles */
+    .dmm-display{
+      background: radial-gradient(600px 200px at 50% -10%, #0c111b 0%, #0c111b 60%, #0a0f18 100%);
+      border:1px solid #1a2332; border-radius:12px; padding:8px 14px; height:130px;
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      text-shadow: 0 0 6px rgba(54,211,153,0.2);
+    }
+    .digits{
+      font-variant-numeric: tabular-nums;
+      font-size:56px; line-height:1; font-weight:700; letter-spacing:1px;
+      background: linear-gradient(180deg, #c7ffe7 0%, #7ef1c6 40%, #3bd098 60%, #1aaa73 100%);
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      filter: drop-shadow(0 5px 12px rgba(54, 211, 153, .18));
+    }
+    .dmm-meta{font-size:12px; color:var(--sub)}
+    .dmm-controls label{display:block; font-size:12px; color:#b5c0cd; margin:8px 0 4px}
+    .select, input[type="number"], input[type="text"]{
+      width:100%; padding:8px 10px; background:#0c121b; color:var(--text);
+      border:1px solid #223044; border-radius:8px; outline:none;
+    }
+    .btn{
+      appearance:none; border:1px solid #1f2b3d; background:linear-gradient(180deg,#1a2434,#121b27);
+      color:var(--text); padding:9px 12px; border-radius:10px; cursor:pointer;
+      box-shadow:0 6px 14px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    .btn.primary{ border-color:#1f3b2f; background:linear-gradient(180deg,#1f3b2f,#15281f); color:#bff6dd}
+    .btn.warn{ border-color:#3b2f1f; background:linear-gradient(180deg,#3b2f1f,#2a2117); color:#ffd7a7}
+    .row{display:flex; gap:10px}
+    .row>*{flex:1}
+    .badge{font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #334155; color:#cbd5e1; background:#0b1220; display:inline-block}
+
+    /* Generator */
+    .knob{
+      display:flex; flex-direction:column; gap:6px; align-items:stretch;
+      background:#0c121b; border:1px solid #1a2332; border-radius:10px; padding:10px;
+    }
+    input[type="range"]{ width:100% }
+    input[type="range"]{
+      -webkit-appearance:none; height:6px; background: #152030; border-radius:999px; outline:none;
+    }
+    input[type="range"]::-webkit-slider-thumb{
+      -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, #bfe7ff, #4ba8e6);
+      box-shadow: 0 0 0 2px #0b1220, 0 8px 16px rgba(0,0,0,.5);
+      border:1px solid #1e3a5f;
+    }
+
+    /* Scope */
+    .scope-wrap{
+      background:#060a11; border:1px solid #122033; border-radius:12px; overflow:hidden; position:relative;
+    }
+    .scope-head{
+      display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-bottom:1px solid #122033; background:#09121c;
+      font-size:12px; color:#b7c3d1;
+    }
+    canvas{ display:block; width:100%; height:220px; background: #0a0f16}
+    .scope-meta{display:flex; gap:8px; align-items:center}
+    .scope-led{width:8px;height:8px;border-radius:50%; background:#67e8f9; box-shadow:0 0 10px rgba(76,195,255,.6)}
+
+    /* Math editor */
+    .math{
+      display:grid; gap:10px; grid-template-columns: 1fr;
+      height:100%;
+      grid-template-rows: auto 1fr auto;
+    }
+    textarea{
+      width:100%; height:160px; resize:vertical; min-height:120px;
+      background:#0c121b; color:#e5e7eb; border:1px solid #1a2332; border-radius:10px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+    .hint{font-size:12px; color:#a6b1bf}
+    .list{
+      border:1px dashed #203047; border-radius:10px; padding:10px; color:#cbd5e1; font-size:13px; background:#0a0f16;
+    }
+
+    /* Utils */
+    .right{justify-content:flex-end}
+    .muted{color:#9aa7b7}
+    .unit{font-weight:600; color:#bfe7ff; margin-left:8px}
+    .spacer{height:6px}
+    .hidden{display:none!important}
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span class="led"></span> MiniLabo — Console</h1>
+    <div class="muted">Session PIN via cookie – Web en ligne</div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+
+      <!-- DMM -->
+      <section class="card" id="card-dmm">
+        <div class="bezel"></div>
+        <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+        <h2>Multimètre <span class="badge" id="dmm-channel">CH1</span> <span class="pill">UDC</span></h2>
+        <div class="content">
+          <div class="dmm-display">
+            <div class="digits" id="dmm-value">—.—</div>
+            <div class="spacer"></div>
+            <div class="dmm-meta"><span id="dmm-source" class="muted">source: —</span> <span class="unit">V</span></div>
+          </div>
+          <div class="dmm-controls">
+            <label>Canal</label>
+            <select id="dmm-select" class="select"></select>
+            <label>Affichage</label>
+            <div class="row">
+              <button class="btn" data-mode="digits">Chiffres</button>
+              <button class="btn" data-mode="binary">Binaire</button>
+              <button class="btn" data-mode="gauge">Cadran</button>
+            </div>
+            <div class="row">
+              <button class="btn primary" id="dmm-refresh">Rafraîchir</button>
+              <button class="btn warn" id="dmm-hold">Hold</button>
+            </div>
+            <div class="spacer"></div>
+            <div class="hint">Le DMM est actualisé toutes les 2 s. Les décimales sont définies par la config du canal.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FUNCGEN -->
+      <section class="card" id="card-func">
+        <div class="bezel"></div>
+        <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+        <h2>Générateur de fonctions <span class="pill blue" id="func-target-pill">cible : —</span></h2>
+        <div class="content">
+          <div class="knob">
+            <div class="row">
+              <div>
+                <label>Amplitude (%)</label>
+                <input id="func-amp" type="range" min="0" max="100" value="50" />
+              </div>
+              <div>
+                <label>Offset (%)</label>
+                <input id="func-off" type="range" min="0" max="100" value="0" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label>Fréquence (Hz)</label>
+                <input id="func-freq" type="number" min="0.1" step="0.1" value="50" />
+              </div>
+              <div>
+                <label>Forme</label>
+                <select id="func-wave" class="select">
+                  <option value="sine">Sinus</option>
+                  <option value="square">Carré</option>
+                  <option value="triangle">Triangle</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label>Cible IO</label>
+                <select id="func-target" class="select"></select>
+              </div>
+              <div class="right" style="display:flex; align-items:flex-end">
+                <button class="btn primary" id="func-apply">Appliquer</button>
+              </div>
+            </div>
+            <div class="hint">La sortie est appliquée en % de l’échelle de l’IO cible (DAC/0‑10 V).</div>
+          </div>
+          <div>
+            <div class="list" id="func-status">Prêt.</div>
+            <div class="spacer"></div>
+            <div class="hint">Astuce : définis une amplitude puis ajoute un offset pour centrer ton signal.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCOPE -->
+      <section class="card" id="card-scope">
+        <div class="bezel"></div>
+        <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+        <h2>Oscilloscope <span class="badge" id="scope-chan">CH1</span> <span class="pill blue" id="scope-timebase">— ms/div</span></h2>
+        <div class="content single">
+          <div class="scope-wrap">
+            <div class="scope-head">
+              <div class="scope-meta"><span class="scope-led"></span> Live</div>
+              <div class="muted" id="scope-meta">—</div>
+            </div>
+            <canvas id="scope-canvas" width="800" height="240"></canvas>
+          </div>
+          <div class="hint">Affichage 1 canal. La base de temps et la V/div se règlent dans la page Scope complète.</div>
+        </div>
+      </section>
+
+      <!-- MATH EDITOR -->
+      <section class="card" id="card-math">
+        <div class="bezel"></div>
+        <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+        <h2>Éditeur d’équations (IO math)</h2>
+        <div class="content single">
+          <div class="math">
+            <div class="hint">Une équation par ligne → <code>io_out = (io_a0 * 3.3) + 0.1</code> • Variables = noms d’IO logiques • Fonctions autorisées basiques ( + − × ÷, abs, min, max ).</div>
+            <textarea id="math-text" spellcheck="false" placeholder="ex: v_div = IO_A0 * 3.3&#10;v_out = v_div * 0.5"></textarea>
+            <div class="row">
+              <button class="btn" id="math-load">Charger</button>
+              <button class="btn primary" id="math-save">Enregistrer</button>
+            </div>
+            <div class="list" id="math-status">Prêt.</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    const $ = (q)=>document.querySelector(q);
+    const j = (url,opts={})=>fetch(url,Object.assign({headers:{'Content-Type':'application/json'}},opts));
+
+    /* --------- DMM --------- */
+    let dmmHold = false, dmmMode = 'digits';
+    async function loadDmm() {
+      try{
+        const r = await j('/api/dmm');
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const data = await r.json();
+        // data: soit {CH1:"1.650",...} soit {display:{...}, meta:{...}}
+        const display = data.display || data;
+        const keys = Object.keys(display);
+        if(keys.length===0) return;
+        const sel = $('#dmm-select');
+        if(sel.options.length===0){
+          keys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=k; sel.appendChild(o); });
+          sel.value = keys.includes('CH1')?'CH1':keys[0];
+          $('#dmm-channel').textContent = sel.value;
+        }
+        const ch = sel.value;
+        if(!dmmHold){
+          $('#dmm-value').textContent = display[ch] ?? '—.—';
+        }
+        $('#dmm-source').textContent = 'source : '+ch;
+      }catch(e){
+        console.warn(e);
+      }
+    }
+    $('#dmm-refresh').addEventListener('click',loadDmm);
+    $('#dmm-hold').addEventListener('click',()=>{ dmmHold = !dmmHold; $('#dmm-hold').textContent = dmmHold?'Hold (ON)':'Hold'; });
+    $('#dmm-select').addEventListener('change',(e)=>{ $('#dmm-channel').textContent = e.target.value; loadDmm(); });
+    document.querySelectorAll('#card-dmm [data-mode]').forEach(b=>b.addEventListener('click',()=>{
+      dmmMode = b.dataset.mode;
+      // Ici on conserve l’affichage numérique; les autres modes sont dans la page DMM complète.
+    }));
+
+    /* --------- FUNCGEN --------- */
+    async function loadIOForFunc(){
+      const r = await j('/api/io');
+      if(!r.ok) return;
+      const arr = await r.json();
+      const sel = $('#func-target');
+      sel.innerHTML='';
+      arr.forEach(io=>{
+        const o=document.createElement('option'); o.value=io.id; o.textContent=io.id; sel.appendChild(o);
+      });
+      const cfg = await (await j('/api/config/funcgen')).json().catch(()=>null);
+      if(cfg){
+        $('#func-amp').value = cfg.amp ?? 50;
+        $('#func-off').value = cfg.offset ?? 0;
+        $('#func-freq').value = cfg.freq ?? 50;
+        $('#func-wave').value = cfg.wave ?? 'sine';
+        if(cfg.target){ sel.value = cfg.target; }
+        $('#func-target-pill').textContent = 'cible : ' + (sel.value||'—');
+      }
+    }
+    async function applyFunc(){
+      const payload = {
+        target: $('#func-target').value,
+        freq: parseFloat($('#func-freq').value),
+        amplitude: parseFloat($('#func-amp').value),
+        offset: parseFloat($('#func-off').value),
+        wave: $('#func-wave').value
+      };
+      try{
+        const r = await j('/api/funcgen',{method:'POST', body: JSON.stringify(payload)});
+        const ok = r.ok ? await r.json() : {success:false};
+        $('#func-status').textContent = ok.success ? 'Paramètres appliqués.' : 'Erreur d’application.';
+        $('#func-target-pill').textContent = 'cible : ' + (payload.target||'—');
+      }catch(e){
+        $('#func-status').textContent = 'Erreur réseau.';
+      }
+    }
+    $('#func-apply').addEventListener('click', applyFunc);
+
+    /* --------- SCOPE (aperçu 1 canal) --------- */
+    const scopeCanvas = $('#scope-canvas');
+    const ctx = scopeCanvas.getContext('2d');
+    function drawGrid(){
+      const w=scopeCanvas.width, h=scopeCanvas.height;
+      ctx.fillStyle = '#0a0f16'; ctx.fillRect(0,0,w,h);
+      // grille principale 10x8
+      const cols=10, rows=8;
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid');
+      ctx.lineWidth=1;
+      for(let i=0;i<=cols;i++){
+        const x = Math.round(i*w/cols)+.5;
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+      }
+      for(let j=0;j<=rows;j++){
+        const y = Math.round(j*h/rows)+.5;
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+      }
+      // sous-grille
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-sub');
+      ctx.lineWidth=1;
+      const sub=5;
+      for(let i=0;i<cols;i++){
+        for(let s=1;s<sub;s++){
+          const x = Math.round((i+s/sub)*w/cols)+.5;
+          ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+        }
+      }
+      for(let j=0;j<rows;j++){
+        for(let s=1;s<sub;s++){
+          const y = Math.round((j+s/sub)*h/rows)+.5;
+          ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+        }
+      }
+    }
+    function plot(samples, color='#4cc3ff'){
+      const w=scopeCanvas.width, h=scopeCanvas.height;
+      if(!samples || samples.length<2){ return; }
+      ctx.strokeStyle = color;
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      const N = samples.length;
+      // Compute scale using max absolute value, fallback 1
+      let vmax = 1;
+      for(let i=0;i<N;i++){
+        const v = Math.abs(samples[i]);
+        if(v>vmax) vmax = v;
+      }
+      const yMid = h/2, scale = (h*0.4)/vmax;
+      for(let i=0;i<N;i++){
+        const x = i*(w-10)/(N-1)+5;
+        const y = yMid - samples[i]*scale;
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    async function loadScope(){
+      try{
+        const r = await j('/api/scope');
+        if(!r.ok) return;
+        const data = await r.json();
+        const chNames = Object.keys(data.channels||{});
+        const first = chNames[0];
+        const samples = first ? data.channels[first] : null;
+        $('#scope-chan').textContent = first || '—';
+        $('#scope-timebase').textContent = (data.timebase_ms_per_div ?? '—') + ' ms/div';
+        $('#scope-meta').textContent = samples ? (samples.length+' pts') : '—';
+        drawGrid(); plot(samples||[]);
+      }catch(e){
+        drawGrid();
+      }
+    }
+
+    /* --------- MATH EDITOR --------- */
+    async function loadMath(){
+      try{
+        const r = await j('/api/config/math');
+        if(!r.ok){ $('#math-status').textContent='Impossible de charger la config.'; return; }
+        const cfg = await r.json();
+        const expr = (cfg.expressions||[]).join('\n');
+        $('#math-text').value = expr;
+        $('#math-status').textContent='Config chargée.';
+      }catch(e){ $('#math-status').textContent='Erreur réseau.'; }
+    }
+    async function saveMath(){
+      const lines = $('#math-text').value.split('\n').map(s=>s.trim()).filter(Boolean);
+      const body = JSON.stringify({expressions: lines});
+      try{
+        const r = await j('/api/config/math?area=math',{method:'PUT', body});
+        $('#math-status').textContent = r.ok ? 'Enregistré.' : 'Erreur d’enregistrement.';
+      }catch(e){ $('#math-status').textContent='Erreur réseau.'; }
+    }
+    $('#math-load').addEventListener('click', loadMath);
+    $('#math-save').addEventListener('click', saveMath);
+
+    /* --------- Boot --------- */
+    function boot(){
+      drawGrid();
+      loadDmm(); loadIOForFunc(); loadMath(); loadScope();
+      setInterval(()=>{ loadDmm(); }, 2000);   // DMM 2 Hz
+      setInterval(()=>{ loadScope(); }, 150);  // Scope ~6-7 fps (léger)
+    }
+    document.addEventListener('DOMContentLoaded', boot);
+  </script>
+</body>
+</html>

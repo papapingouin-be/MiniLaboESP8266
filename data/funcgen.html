@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Générateur de fonctions – MiniLabo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>Générateur de fonctions</h1>
+  <form id="funcForm" onsubmit="submitForm(event)">
+    <label for="type">Type d'onde :</label>
+    <select id="type">
+      <option value="sine">Sinusoïde</option>
+      <option value="square">Carré</option>
+      <option value="triangle">Triangle</option>
+    </select><br>
+    <label for="freq">Fréquence (Hz) :</label>
+    <input type="number" id="freq" value="1000" min="0" step="1"><br>
+    <label for="amp">Amplitude (%) :</label>
+    <input type="number" id="amp" value="50" min="0" max="100" step="1"><br>
+    <label for="offset">Offset (%) :</label>
+    <input type="number" id="offset" value="50" min="0" max="100" step="1"><br>
+    <label for="enabled">Activé :</label>
+    <input type="checkbox" id="enabled" checked><br>
+    <button type="submit">Envoyer</button>
+  </form>
+  <p id="status"></p>
+  <script>
+  async function submitForm(ev) {
+    ev.preventDefault();
+    const type = document.getElementById('type').value;
+    const freq = parseFloat(document.getElementById('freq').value);
+    const amp = parseFloat(document.getElementById('amp').value);
+    const offset = parseFloat(document.getElementById('offset').value);
+    const enabled = document.getElementById('enabled').checked;
+    const body = {
+      type: type,
+      freq: freq,
+      amp_pct: amp,
+      offset_pct: offset,
+      enabled: enabled
+    };
+    try {
+      const res = await fetch('/api/funcgen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      document.getElementById('status').textContent = 'Configuration envoyée.';
+    } catch (e) {
+      document.getElementById('status').textContent = 'Erreur lors de l’envoi.';
+    }
+  }
+  </script>
+</body>
+</html>

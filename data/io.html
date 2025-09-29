@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Configuration des IO – MiniLabo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>Configuration des entrées/sorties</h1>
+  <p>Cette page permet d’afficher et de modifier la configuration des entrées/sorties physiques. Vous pouvez ajuster l’index et les coefficients de calibration <code>k</code> et <code>b</code> pour chaque canal.</p>
+  <table id="ioTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Type</th>
+        <th>Index</th>
+        <th>k</th>
+        <th>b</th>
+      </tr>
+    </thead>
+    <tbody>
+    </tbody>
+  </table>
+  <button onclick="refresh()">Rafraîchir</button>
+  <button onclick="save()">Enregistrer</button>
+  <p id="status"></p>
+
+  <script>
+  // Charge la configuration IO depuis l’API et renseigne le tableau.
+  async function refresh() {
+    try {
+      const res = await fetch('/api/config?area=io');
+      const data = await res.json();
+      const tbody = document.querySelector('#ioTable tbody');
+      tbody.innerHTML = '';
+      if (Array.isArray(data)) {
+        data.forEach((ch, idx) => {
+          const tr = document.createElement('tr');
+          // ID et type ne sont pas modifiables pour éviter les incohérences.
+          tr.innerHTML =
+            '<td><input type="text" value="' + (ch.id || '') + '" readonly></td>' +
+            '<td><input type="text" value="' + (ch.type || '') + '" readonly></td>' +
+            '<td><input type="number" value="' + (ch.index !== undefined ? ch.index : 0) + '" min="0" step="1"></td>' +
+            '<td><input type="number" value="' + (ch.k !== undefined ? ch.k : 0) + '" step="0.000001"></td>' +
+            '<td><input type="number" value="' + (ch.b !== undefined ? ch.b : 0) + '" step="0.001"></td>';
+          tbody.appendChild(tr);
+        });
+      }
+      document.getElementById('status').textContent = '';
+    } catch (e) {
+      document.getElementById('status').textContent = 'Erreur lors du chargement de la configuration IO.';
+    }
+  }
+
+  // Collecte le contenu du tableau et envoie la configuration au serveur.
+  async function save() {
+    const rows = document.querySelectorAll('#ioTable tbody tr');
+    const payload = [];
+    rows.forEach(tr => {
+      const cells = tr.querySelectorAll('td input');
+      const id = cells[0].value;
+      const type = cells[1].value;
+      const index = parseInt(cells[2].value);
+      const k = parseFloat(cells[3].value);
+      const b = parseFloat(cells[4].value);
+      payload.push({ id: id, type: type, index: index, k: k, b: b });
+    });
+    try {
+      const res = await fetch('/api/config?area=io', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        document.getElementById('status').textContent = 'Configuration enregistrée.';
+      } else {
+        const txt = await res.text();
+        document.getElementById('status').textContent = 'Erreur lors de l’enregistrement : ' + txt;
+      }
+    } catch (e) {
+      document.getElementById('status').textContent = 'Erreur lors de l’enregistrement de la configuration.';
+    }
+  }
+
+  refresh();
+  </script>
+</body>
+</html>

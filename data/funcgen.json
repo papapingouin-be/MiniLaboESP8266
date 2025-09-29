@@ -1,0 +1,7 @@
+{
+  "type": "sine",
+  "freq": 1000,
+  "amp_pct": 50,
+  "offset_pct": 50,
+  "enabled": false
+}

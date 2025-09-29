@@ -1,0 +1,9 @@
+{
+  "mode": "ap",
+  "ssid": "",
+  "password": "",
+  "ap_ssid": "",
+  "ap_password": "",
+  "hostname": "",
+  "sta_timeout_ms": 15000
+}

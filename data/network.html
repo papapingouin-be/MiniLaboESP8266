@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="fr">
+<!--
+  network.html
+
+  Cette page est un squelette pour la configuration réseau du MiniLabo.
+  Elle doit permettre à l’utilisateur de sélectionner le mode WiFi (AP
+  ou STA), de saisir le SSID et le mot de passe de la station, ainsi
+  que les informations pour le point d’accès. Elle doit charger la
+  configuration existante via /api/config?area=network et envoyer
+  les modifications via PUT /api/config?area=network. Aucune
+  persistance n’est implémentée ici : les handlers doivent être
+  ajoutés côté firmware et cette page doit inclure le code JavaScript
+  nécessaire (fetch, validation, etc.).
+  TODO: implémenter la logique de chargement et de sauvegarde.
+-->
+<head>
+  <meta charset="utf-8">
+  <title>Configuration Réseau – MiniLabo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>Configuration Réseau</h1>
+  <p>Cette page permettra de configurer le mode WiFi de l’appareil.</p>
+  <form id="net-form">
+    <fieldset>
+      <legend>Mode</legend>
+      <label><input type="radio" name="mode" value="ap" checked> Point d’accès (AP)</label><br>
+      <label><input type="radio" name="mode" value="sta"> Station (STA)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Paramètres STA</legend>
+      <label>SSID: <input type="text" name="ssid"></label><br>
+      <label>Mot de passe: <input type="password" name="password"></label><br>
+    </fieldset>
+    <fieldset>
+      <legend>Paramètres AP</legend>
+      <label>SSID AP: <input type="text" name="ap_ssid"></label><br>
+      <label>Mot de passe AP: <input type="password" name="ap_password"></label><br>
+    </fieldset>
+    <button type="submit">Enregistrer</button>
+  </form>
+  <p id="status"></p>
+  <script>
+  // Charge la configuration réseau existante et remplit le formulaire.
+  async function loadNetworkConfig() {
+    try {
+      const r = await fetch('/api/config?area=network');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const cfg = await r.json();
+      // Mode
+      const mode = cfg.mode || 'ap';
+      document.querySelectorAll('input[name="mode"]').forEach(radio => {
+        radio.checked = (radio.value === mode);
+      });
+      // STA
+      document.querySelector('input[name="ssid"]').value = cfg.ssid || '';
+      document.querySelector('input[name="password"]').value = cfg.password || '';
+      // AP
+      document.querySelector('input[name="ap_ssid"]').value = cfg.ap_ssid || '';
+      document.querySelector('input[name="ap_password"]').value = cfg.ap_password || '';
+    } catch (e) {
+      console.warn('Failed to load network config', e);
+      document.getElementById('status').textContent = 'Erreur de chargement de la configuration.';
+    }
+  }
+  // Sauvegarde la configuration modifiée
+  async function saveNetworkConfig(e) {
+    e.preventDefault();
+    const form = document.getElementById('net-form');
+    const data = {};
+    data.mode = form.elements['mode'].value;
+    data.ssid = form.elements['ssid'].value;
+    data.password = form.elements['password'].value;
+    data.ap_ssid = form.elements['ap_ssid'].value;
+    data.ap_password = form.elements['ap_password'].value;
+    try {
+      const r = await fetch('/api/config?area=network', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      document.getElementById('status').textContent = 'Enregistré.';
+    } catch (e) {
+      console.warn(e);
+      document.getElementById('status').textContent = 'Erreur d’enregistrement.';
+    }
+  }
+  document.getElementById('net-form').addEventListener('submit', saveNetworkConfig);
+  loadNetworkConfig();
+  </script>
+</body>
+</html>

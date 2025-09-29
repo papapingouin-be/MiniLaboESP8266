@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<!--
+  bench.html
+
+  Cette page regroupe les quatre appareils (multimètre, générateur de
+  fonctions, oscilloscope, éditeur math) dans une grille 2×2. Elle
+  réutilise les composants visuels définis dans d’autres pages mais
+  offre une vue compacte façon banc de test. Les API nécessaires
+  (DMM, funcgen, scope, math) doivent être exposées côté firmware.
+  TODO: rafraîchir et synchroniser les quatre cadrans simultanément,
+  gérer la sélection de canaux et l’application des paramètres. Le
+  style est inspiré des instruments de labo.
+-->
+<head>
+  <meta charset="utf-8" />
+  <title>MiniLabo — Banc de test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0c0f14;
+      --panel:#121722;
+      --panel-2:#0f141d;
+      --bezel:#1a2230;
+      --accent:#36d399;
+      --accent-2:#4cc3ff;
+      --warn:#ffb86b;
+      --danger:#ff6b6b;
+      --text:#e5e7eb;
+      --sub:#98a2b3;
+      --grid:#1f2a3a;
+      --grid-sub:#162030;
+      --shadow: 0 10px 25px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family: ui-sans-serif, system-ui; background: var(--bg); color: var(--text);}
+    header{display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid #1f2937; background:#101522;}
+    header h1{margin:0; font-size:18px; font-weight:600}
+    .grid{display:grid; gap:18px; padding:18px; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, auto);}
+    .card{background: var(--panel); border:1px solid #1b2636; border-radius: var(--radius); box-shadow: var(--shadow); position:relative; overflow:hidden; color:var(--text);}
+    .card h2{margin:0; padding:12px 14px; font-size:14px; font-weight:600; border-bottom:1px solid #1b2636; background:#0f1522;}
+    /* Basic placeholders for the four quadrants */
+    .placeholder{display:flex; justify-content:center; align-items:center; height:200px; color:var(--sub); font-size:14px;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Banc de test</h1>
+    <nav><a href="index.html" style="color:var(--accent)">← Retour</a></nav>
+  </header>
+  <div class="grid">
+    <section class="card" id="bench-dmm">
+      <h2>Multimètre</h2>
+      <div class="placeholder">Affichage multimètre (TODO)</div>
+    </section>
+    <section class="card" id="bench-func">
+      <h2>Générateur</h2>
+      <div class="placeholder">Contrôles du générateur (TODO)</div>
+    </section>
+    <section class="card" id="bench-scope">
+      <h2>Oscilloscope</h2>
+      <div class="placeholder">Trace oscillo (TODO)</div>
+    </section>
+    <section class="card" id="bench-math">
+      <h2>Zone math</h2>
+      <div class="placeholder">Éditeur d’équations (TODO)</div>
+    </section>
+  </div>
+  <script>
+    // TODO: implémenter les appels API pour les quatre cadrans. Ce
+    // squelette devrait interroger /api/dmm, /api/funcgen, /api/scope
+    // et /api/config?area=math pour afficher les valeurs en temps
+    // réel. Les placeholders peuvent être remplacés par les widgets
+    // détaillés définis dans devices.html.
+  </script>
+</body>
+</html>

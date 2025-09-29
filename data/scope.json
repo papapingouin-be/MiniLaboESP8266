@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "channel": "CH1",
+  "timebase": 10,
+  "vdiv": 1.0,
+  "offset": 0.0
+}
