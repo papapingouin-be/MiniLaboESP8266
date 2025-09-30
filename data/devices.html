@@ -116,9 +116,9 @@
     .pill{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; color:#0b1220; background:#b9f6da}
     .pill.blue{background:#bfe7ff}
     .content{padding:14px; display:grid; grid-template-columns: 1.2fr .8fr; gap:14px; height:calc(100% - 52px)}
-    .content.dmm-vertical{display:flex; flex-direction:column}
-    .content.dmm-vertical .dmm-display{flex:1; min-height:0}
-    .content.dmm-vertical .dmm-controls{margin-top:14px}
+    .content.dmm-vertical{display:flex; flex-direction:column; height:calc(100% - 52px)}
+    .content.dmm-vertical .dmm-display{flex:3 1 0; min-height:0; width:100%}
+    .content.dmm-vertical .dmm-controls{flex:1 1 0; margin-top:14px; width:100%}
     .content.single{grid-template-columns: 1fr}
 
     /* DMM styles */
@@ -168,9 +168,11 @@
     .gauge-readout{display:flex; align-items:baseline; gap:6px; font-variant-numeric: tabular-nums}
     .gauge-value{font-size:32px; font-weight:600; color:#7ef1c6}
     .gauge-unit{font-size:16px; font-weight:600; color:#bfe7ff}
-    .dmm-controls{display:flex; flex-direction:column; gap:12px}
-    .dmm-controls .control-line{display:flex; flex-wrap:wrap; gap:18px; align-items:flex-start}
-    .dmm-controls .control-group{flex:1 1 220px}
+    .dmm-controls{display:flex; flex-direction:column; gap:12px; height:100%}
+    .dmm-controls .control-line{display:flex; gap:18px; align-items:stretch; height:100%}
+    .dmm-controls .control-group{display:flex; flex-direction:column}
+    .dmm-controls .control-group.channel{flex:0 0 25%; max-width:25%}
+    .dmm-controls .control-group.display{flex:1 1 0}
     .dmm-controls label,
     .dmm-controls .control-label{display:block; font-size:12px; color:#b5c0cd; margin-bottom:6px}
     .info-label{position:relative; display:inline-flex; align-items:center; gap:6px; cursor:help}
@@ -180,12 +182,15 @@
     .info-label:focus-visible::after{opacity:1; transform:translateY(0)}
     .info-label:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:4px}
     .mode-row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
-    .mode-buttons{display:flex; flex-wrap:wrap; gap:10px}
-    .mode-row .btn.warn{margin-left:auto}
+    .mode-buttons{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+    .mode-row>.btn.warn{margin-left:auto}
+    .mode-buttons .btn-hold{padding:7px 10px; font-size:12px; white-space:nowrap}
     @media (max-width: 720px){
       .dmm-controls .control-line{flex-direction:column}
+      .dmm-controls .control-group.channel{flex:1 1 100%; max-width:none}
+      .dmm-controls .control-group.display{flex:1 1 100%}
       .mode-row{justify-content:flex-start}
-      .mode-row .btn.warn{margin-left:0}
+      .mode-row>.btn.warn{margin-left:0}
     }
 
     .dmm-controls label{display:block; font-size:12px; color:#b5c0cd; margin:8px 0 4px}
@@ -300,19 +305,19 @@
           </div>
           <div class="dmm-controls">
             <div class="control-line">
-              <div class="control-group">
+              <div class="control-group channel">
                 <label for="dmm-select">Canal</label>
                 <select id="dmm-select" class="select"></select>
               </div>
-              <div class="control-group">
+              <div class="control-group display">
                 <div class="control-label info-label" data-tooltip="Le DMM est actualisé toutes les 2 s. Les décimales sont définies par la config du canal." tabindex="0">Affichage <span class="info-icon" aria-hidden="true">i</span></div>
                 <div class="mode-row">
                   <div class="mode-buttons">
                     <button class="btn" data-mode="digits">Numérique</button>
                     <button class="btn" data-mode="binary">Binaire</button>
                     <button class="btn" data-mode="gauge">Cadran</button>
+                    <button class="btn warn btn-hold" id="dmm-hold">Hold</button>
                   </div>
-                  <button class="btn warn" id="dmm-hold">Hold</button>
                 </div>
               </div>
             </div>
