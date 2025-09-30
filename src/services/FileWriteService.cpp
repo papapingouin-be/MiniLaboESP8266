@@ -83,7 +83,7 @@ void FileWriteService::enqueue(const String &path, const String &contents) {
   m_tasks[m_tail].contents = contents;
   m_tail = (m_tail + 1) % kMaxQueueLength;
   m_count++;
-  Serial.println(String(F("[FS] Enqueued write for ")) + path + F(" (queue=")) +
+  Serial.println(String(F("[FS] Enqueued write for ")) + path + F(" (queue=") +
                  String(m_count + (m_busy ? 1 : 0)) + F(")"));
 }
 
