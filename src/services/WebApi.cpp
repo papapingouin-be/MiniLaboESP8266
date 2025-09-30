@@ -161,6 +161,8 @@ void WebApi::handlePutConfig() {
   String area = m_server.arg("area");
   // Get plain body
   String body = m_server.arg("plain");
+  Serial.println(String(F("[HTTP] PUT /api/config area=")) + area +
+                 F(" length=") + String(body.length()));
   if (body.length() == 0) {
     m_server.send(400, "application/json",
                   "{\"error\":\"missing body\"}");
@@ -197,6 +199,10 @@ void WebApi::handlePutConfig() {
       f.close();
       LittleFS.remove(filename);
       LittleFS.rename(filename + ".tmp", filename);
+      Serial.println(String(F("[HTTP] Direct write complete: ")) + filename);
+    } else {
+      Serial.println(String(F("[HTTP] Direct write failed to open: ")) +
+                     filename);
     }
   }
   m_server.send(200, "application/json", "{\"ok\":true}");

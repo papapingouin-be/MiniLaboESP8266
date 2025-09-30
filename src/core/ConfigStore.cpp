@@ -82,15 +82,18 @@ bool ConfigStore::updateConfig(const String &area, const JsonDocument &doc) {
   // the file to the target name.
   String filename = "/" + area + String(".json");
   String tmpname = filename + ".tmp";
+  Serial.println(String(F("[CFG] Saving config for area=")) + area);
   // Open temporary file for writing
   File f = LittleFS.open(tmpname, "w");
   if (!f) {
+    Serial.println(String(F("[CFG] Failed to open temp file: ")) + tmpname);
     return false;
   }
   // Serialize JSON into the file
   if (serializeJson(doc, f) == 0) {
     f.close();
     LittleFS.remove(tmpname);
+    Serial.println(String(F("[CFG] Failed to serialize area=")) + area);
     return false;
   }
   f.flush();
@@ -103,6 +106,7 @@ bool ConfigStore::updateConfig(const String &area, const JsonDocument &doc) {
   if (!LittleFS.rename(tmpname, filename)) {
     // Clean up if rename fails
     LittleFS.remove(tmpname);
+    Serial.println(String(F("[CFG] Rename failed for area=")) + area);
     return false;
   }
   // Update in-memory copy
@@ -110,5 +114,6 @@ bool ConfigStore::updateConfig(const String &area, const JsonDocument &doc) {
   // Copy doc into stored doc
   m_entries[index].doc.set(doc);
   m_entries[index].loaded = true;
+  Serial.println(String(F("[CFG] Config saved: ")) + filename);
   return true;
 }
