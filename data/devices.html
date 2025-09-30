@@ -1148,8 +1148,7 @@
           `Max : ${formatVolt(meta.max)}`,
           `Moyenne : ${formatVolt(meta.mean)}`,
           meta.voltsPerDiv ? `1 div = ${formatVolt(meta.voltsPerDiv)}` : null
-        ].filter(Boolean).join('
-');
+        ].filter(Boolean).join('\n');
       }else if(count){
         lines = `Points : ${count}`;
       }
@@ -1158,8 +1157,7 @@
       const traceLines = meta ? [
         `Vpp : ${formatVolt(meta.max - meta.min)}`,
         meta.voltsPerDiv ? `Échelle : ${formatVolt(meta.voltsPerDiv, '/div')}` : null
-      ].filter(Boolean).join('
-') : '—';
+      ].filter(Boolean).join('\n') : '—';
       if(scopeTraceInfo){ scopeTraceInfo.setAttribute('data-tooltip', traceLines || '—'); }
 
       if(scopeScalePopup){
