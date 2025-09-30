@@ -12,8 +12,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <queue>
-
 class FileWriteService {
 public:
   // Initialize the service. Currently no state to initialize.
@@ -31,10 +29,14 @@ public:
   size_t pending() const;
 
 private:
+  static constexpr size_t kMaxQueueLength = 8;
   struct Task {
     String path;
     String contents;
   };
-  std::queue<Task> m_queue;
+  Task m_tasks[kMaxQueueLength];
+  size_t m_head{0};
+  size_t m_tail{0};
+  size_t m_count{0};
   bool m_busy{false};
 };
