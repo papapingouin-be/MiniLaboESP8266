@@ -159,6 +159,117 @@
       color: #214bb8;
     }
 
+    details.collapsible-toggle {
+      background: #f1f4fb;
+      border: 1px solid #d7deea;
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+    }
+
+    details.collapsible-toggle > summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #1f3d7a;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    details.collapsible-toggle > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.collapsible-toggle > summary::before {
+      content: '\\25B8';
+      transition: transform 0.2s ease;
+      font-size: 0.85rem;
+    }
+
+    details.collapsible-toggle[open] > summary::before {
+      transform: rotate(90deg);
+    }
+
+    details.collapsible-toggle .collapsible-content {
+      margin-top: 0.75rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    section.panel.collapsible details.collapsible-toggle {
+      background: transparent;
+      border: none;
+      padding: 0;
+    }
+
+    section.panel.collapsible details.collapsible-toggle .collapsible-content {
+      margin-top: 1rem;
+    }
+
+    section.panel.collapsible {
+      padding-bottom: 0.5rem;
+    }
+
+    table#ioTable td[data-field="raw"],
+    table#ioTable td[data-field="value"] {
+      font-family: "Courier New", monospace;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    table#ioTable td[data-field="raw"] span,
+    table#ioTable td[data-field="value"] span {
+      display: inline-block;
+      min-width: 4.5rem;
+    }
+
+    .log-panel {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .log-output {
+      background: #101a33;
+      border: 1px solid #1f2f55;
+      border-radius: 10px;
+      color: #e7efff;
+      font-family: "Courier New", monospace;
+      font-size: 0.85rem;
+      line-height: 1.35;
+      max-height: 280px;
+      overflow-y: auto;
+      padding: 0.75rem 0.9rem;
+      white-space: pre-wrap;
+    }
+
+    .log-entry {
+      margin: 0;
+    }
+
+    .log-entry + .log-entry {
+      margin-top: 0.35rem;
+    }
+
+    .log-entry .log-time {
+      color: #9db7ff;
+    }
+
+    .log-entry.info .log-message {
+      color: #e7efff;
+    }
+
+    .log-entry.success .log-message {
+      color: #9df4c2;
+    }
+
+    .log-entry.warn .log-message {
+      color: #ffd66b;
+    }
+
+    .log-entry.error .log-message {
+      color: #ff9a9a;
+    }
+
     @media (max-width: 900px) {
       .io-layout {
         grid-template-columns: 1fr;
@@ -168,9 +279,16 @@
 </head>
 <body>
   <h1>Configuration des entrées/sorties</h1>
-  <p>Cette page centralise la typologie des entrées/sorties du MiniLabo et propose des outils de calibration. Commencez par
-  sélectionner un canal dans le tableau, puis utilisez l’assistant pour calculer la conversion entre la grandeur électrique
-  mesurée et la grandeur physique souhaitée.</p>
+  <details class="collapsible-toggle">
+    <summary>Afficher les informations générales</summary>
+    <div class="collapsible-content">
+      <p>Cette page centralise la typologie des entrées/sorties du MiniLabo et propose des outils de calibration. Sélectionnez un
+      canal dans le tableau, puis utilisez l’assistant pour calculer la conversion entre la grandeur électrique mesurée et la
+      grandeur physique souhaitée.</p>
+      <p>Les sections d’aide détaillées sont repliées par défaut pour alléger l’écran. Ouvrez-les au besoin pour retrouver la
+      documentation complète.</p>
+    </div>
+  </details>
 
   <nav class="quick-links">
     <a href="#typologie-entrees">Entrées</a>
@@ -180,63 +298,75 @@
     <a href="#assistant">Assistant de calibration</a>
   </nav>
 
-  <section id="typologie-entrees" class="panel">
-    <h2>Typologie des entrées</h2>
-    <p>Une entrée convertit un signal en une valeur exploitable par les outils web (oscilloscope, DMM, scripts math, UDP). Les
-    entrées peuvent être locales (connectées directement à l’ESP8266) ou déportées (reçues via le réseau).</p>
-    <div class="typology-grid">
-      <article>
-        <h3>Entrées réelles locales</h3>
-        <ul>
-          <li><span class="highlight">ADC interne (A0)</span> : 10 bits, 0–1 V natif (0–3,3 V avec diviseur intégré sur NodeMCU).</li>
-          <li><span class="highlight">ADS1115 (I²C)</span> : module 16 bits avec amplification programmable, idéal pour les mesures fines.</li>
-          <li><span class="highlight">ZMPT101B</span> : transformateur de tension AC, sortie 0–3,3 V, 10 bits.</li>
-          <li><span class="highlight">ZMCT103C</span> : transformateur de courant AC, tension de sortie proportionnelle.</li>
-        </ul>
-      </article>
-      <article>
-        <h3>Entrées déportées</h3>
-        <p>Les valeurs proviennent d’autres modules (ESP8266/ESP32) ou d’un PC via UDP. Elles complètent la configuration locale et
-        sont intégrées aux mêmes outils de visualisation.</p>
-        <ul>
-          <li>Permet de centraliser des mesures distantes dans un seul MiniLabo.</li>
-          <li>Chaque flux UDP est identifié par un nom de canal (ID) repris dans le tableau de configuration.</li>
-          <li>La normalisation k/b peut s’appliquer comme pour les entrées réelles.</li>
-        </ul>
-      </article>
-    </div>
+  <section id="typologie-entrees" class="panel collapsible">
+    <details class="collapsible-toggle">
+      <summary>Typologie des entrées</summary>
+      <div class="collapsible-content">
+        <p>Une entrée convertit un signal en une valeur exploitable par les outils web (oscilloscope, DMM, scripts math, UDP). Les
+        entrées peuvent être locales (connectées directement à l’ESP8266) ou déportées (reçues via le réseau).</p>
+        <div class="typology-grid">
+          <article>
+            <h3>Entrées réelles locales</h3>
+            <ul>
+              <li><span class="highlight">ADC interne (A0)</span> : 10 bits, 0–1 V natif (0–3,3 V avec diviseur intégré sur NodeMCU).</li>
+              <li><span class="highlight">ADS1115 (I²C)</span> : module 16 bits avec amplification programmable, idéal pour les mesures fines.</li>
+              <li><span class="highlight">ZMPT101B</span> : transformateur de tension AC, sortie 0–3,3 V, 10 bits.</li>
+              <li><span class="highlight">ZMCT103C</span> : transformateur de courant AC, tension de sortie proportionnelle.</li>
+            </ul>
+          </article>
+          <article>
+            <h3>Entrées déportées</h3>
+            <p>Les valeurs proviennent d’autres modules (ESP8266/ESP32) ou d’un PC via UDP. Elles complètent la configuration locale et
+            sont intégrées aux mêmes outils de visualisation.</p>
+            <ul>
+              <li>Permet de centraliser des mesures distantes dans un seul MiniLabo.</li>
+              <li>Chaque flux UDP est identifié par un nom de canal (ID) repris dans le tableau de configuration.</li>
+              <li>La normalisation k/b peut s’appliquer comme pour les entrées réelles.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </details>
   </section>
 
-  <section id="typologie-sorties" class="panel">
-    <h2>Typologie des sorties</h2>
-    <div class="typology-grid">
-      <article>
-        <h3>Sorties réelles</h3>
-        <ul>
-          <li><span class="highlight">MCP4725 (DAC 12 bits)</span> : conversion en tension 0–3,3 V proportionnelle au pourcentage demandé.</li>
-          <li><span class="highlight">Convertisseur PWM → 0–10 V</span> : interface pour actionneurs industriels ou drivers de LED.</li>
-        </ul>
-      </article>
-      <article>
-        <h3>Stratégies d’utilisation</h3>
-        <ul>
-          <li>Associez chaque sortie à l’entrée ou au calcul math correspondant (PID, consigne, etc.).</li>
-          <li>Définissez une conversion inverse (grandeur physique → tension) via les coefficients k/b.</li>
-          <li>Utilisez les outils math pour générer des profils de sortie ou automatiser des séquences.</li>
-        </ul>
-      </article>
-    </div>
+  <section id="typologie-sorties" class="panel collapsible">
+    <details class="collapsible-toggle">
+      <summary>Typologie des sorties</summary>
+      <div class="collapsible-content">
+        <div class="typology-grid">
+          <article>
+            <h3>Sorties réelles</h3>
+            <ul>
+              <li><span class="highlight">MCP4725 (DAC 12 bits)</span> : conversion en tension 0–3,3 V proportionnelle au pourcentage demandé.</li>
+              <li><span class="highlight">Convertisseur PWM → 0–10 V</span> : interface pour actionneurs industriels ou drivers de LED.</li>
+            </ul>
+          </article>
+          <article>
+            <h3>Stratégies d’utilisation</h3>
+            <ul>
+              <li>Associez chaque sortie à l’entrée ou au calcul math correspondant (PID, consigne, etc.).</li>
+              <li>Définissez une conversion inverse (grandeur physique → tension) via les coefficients k/b.</li>
+              <li>Utilisez les outils math pour générer des profils de sortie ou automatiser des séquences.</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </details>
   </section>
 
-  <section id="udp" class="panel">
-    <h2>Serveur UDP</h2>
-    <p>Le MiniLabo peut diffuser ses valeurs sur le réseau via <span class="highlight">UDP TX</span>. Toute valeur convertie (après k/b)
-    peut être publiée vers un autre MiniLabo ou un PC pour être affichée, enregistrée ou réinjectée dans une boucle d’asservissement.</p>
-    <ul class="legend">
-      <li>Utilisez le champ <em>type</em> pour distinguer les canaux UDP entrants (« udp-in ») et sortants (« udp-out »).</li>
-      <li>Configurez les paramètres réseau dans l’onglet <a href="udp.html">UDP</a> puis associez le canal dans cette page.</li>
-      <li>Le statut du flux est visible dans la page <a href="logs.html">Logs</a> et dans l’onglet réseau.</li>
-    </ul>
+  <section id="udp" class="panel collapsible">
+    <details class="collapsible-toggle">
+      <summary>Serveur UDP</summary>
+      <div class="collapsible-content">
+        <p>Le MiniLabo peut diffuser ses valeurs sur le réseau via <span class="highlight">UDP TX</span>. Toute valeur convertie (après k/b)
+        peut être publiée vers un autre MiniLabo ou un PC pour être affichée, enregistrée ou réinjectée dans une boucle d’asservissement.</p>
+        <ul class="legend">
+          <li>Utilisez le champ <em>type</em> pour distinguer les canaux UDP entrants (« udp-in ») et sortants (« udp-out »).</li>
+          <li>Configurez les paramètres réseau dans l’onglet <a href="udp.html">UDP</a> puis associez le canal dans cette page.</li>
+          <li>Le statut du flux est visible dans la page <a href="logs.html">Logs</a> et dans l’onglet réseau.</li>
+        </ul>
+      </div>
+    </details>
   </section>
 
   <div class="io-layout" id="configuration">
@@ -252,6 +382,7 @@
             <th>Index</th>
             <th>k</th>
             <th>b</th>
+            <th>Mesure brute</th>
             <th>Valeur calculée</th>
             <th>Unité</th>
             <th>Actions</th>
@@ -267,6 +398,14 @@
         <button type="button" onclick="save()">Enregistrer</button>
       </div>
       <p id="status"></p>
+      <section class="panel log-panel">
+        <h2>Journal de configuration</h2>
+        <p class="legend">Les étapes s’affichent ici pour faciliter le diagnostic en cas de blocage.</p>
+        <div class="log-output" id="logOutput" aria-live="polite"></div>
+        <div class="actions">
+          <button type="button" onclick="clearLog()">Effacer le journal</button>
+        </div>
+      </section>
     </section>
 
     <aside id="assistant" class="panel assistant-section">
@@ -397,6 +536,10 @@
   let hardwarePromise = null;
   let snapshotTimer = null;
   let latestSnapshotRaw = new Map();
+  const LOG_MAX_ENTRIES = 200;
+  let logEntries = [];
+  let snapshotLogCount = 0;
+  let snapshotErrorNotified = false;
 
   function populateProfiles() {
     const select = document.getElementById('hardwareProfile');
@@ -472,7 +615,9 @@
   }
 
   async function fetchHardwareCapabilities() {
+    logEvent('Détection des capacités matérielles...', 'info');
     let locals = [];
+    let hadNetworkError = false;
     try {
       const res = await fetch('/api/io/hardware');
       if (res.ok) {
@@ -480,12 +625,24 @@
         if (data && Array.isArray(data.localInputs) && data.localInputs.length) {
           locals = data.localInputs.map(normalizeLocalInput);
         }
+      } else {
+        hadNetworkError = true;
+        logEvent(`Lecture des capacités matérielles impossible (statut ${res.status}).`, 'warn');
       }
     } catch (err) {
-      // Ignore network errors and fall back to defaults.
+      hadNetworkError = true;
+      const reason = err && err.message ? err.message : String(err);
+      logEvent(`Erreur lors de la récupération des capacités matérielles : ${reason}`, 'warn');
     }
     if (!locals.length) {
       locals = DEFAULT_LOCAL_INPUTS.map(normalizeLocalInput);
+      if (hadNetworkError) {
+        logEvent('Utilisation des profils par défaut (capteurs matériels non détectés).', 'warn');
+      } else {
+        logEvent('Aucun profil spécifique détecté, utilisation des valeurs par défaut.', 'info');
+      }
+    } else {
+      logEvent(`Capacités matérielles chargées (${locals.length} profil(s)).`, 'success');
     }
     capabilities.localInputs = locals;
     updateTypeDatalist();
@@ -733,31 +890,88 @@
     return value.toFixed(3);
   }
 
+  function escapeHtml(input) {
+    const str = typeof input === 'string' ? input : String(input ?? '');
+    return str.replace(/[&<>"']/g, char => {
+      switch (char) {
+        case '&':
+          return '&amp;';
+        case '<':
+          return '&lt;';
+        case '>':
+          return '&gt;';
+        case '"':
+          return '&quot;';
+        case "'":
+          return '&#39;';
+        default:
+          return char;
+      }
+    });
+  }
+
+  function formatLogEntry(entry) {
+    const date = entry && entry.time instanceof Date ? entry.time : new Date();
+    const level = entry && typeof entry.level === 'string' ? entry.level : 'info';
+    const message = entry && Object.prototype.hasOwnProperty.call(entry, 'message')
+      ? entry.message
+      : '';
+    const timeLabel = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    return `<p class="log-entry ${level}"><span class="log-time">[${timeLabel}]</span> <span class="log-message">${escapeHtml(message)}</span></p>`;
+  }
+
+  function renderLog() {
+    const output = document.getElementById('logOutput');
+    if (!output) return;
+    output.innerHTML = logEntries.map(formatLogEntry).join('\n');
+    output.scrollTop = output.scrollHeight;
+  }
+
+  function logEvent(message, level = 'info') {
+    const normalized = level === 'error' || level === 'warn' || level === 'success' ? level : 'info';
+    logEntries.push({
+      message,
+      level: normalized,
+      time: new Date()
+    });
+    if (logEntries.length > LOG_MAX_ENTRIES) {
+      logEntries = logEntries.slice(logEntries.length - LOG_MAX_ENTRIES);
+    }
+    renderLog();
+  }
+
+  function clearLog() {
+    logEntries = [];
+    renderLog();
+  }
+
   function refreshValueColumn() {
     const rows = document.querySelectorAll('#ioTable tbody tr');
     rows.forEach(tr => {
       const idInput = tr.querySelector('td[data-field="id"] input');
+      const rawSpan = tr.querySelector('td[data-field="raw"] span');
       const valueSpan = tr.querySelector('td[data-field="value"] span');
-      if (!valueSpan || !idInput) {
-        if (valueSpan) valueSpan.textContent = '—';
+      if (rawSpan) rawSpan.textContent = '—';
+      if (valueSpan) valueSpan.textContent = '—';
+      if (!idInput) {
         return;
       }
       const id = idInput.value.trim();
       if (!id.length || !latestSnapshotRaw.has(id)) {
-        valueSpan.textContent = '—';
         return;
       }
       const raw = latestSnapshotRaw.get(id);
       if (!Number.isFinite(raw)) {
-        valueSpan.textContent = '—';
         return;
+      }
+      if (rawSpan) {
+        rawSpan.textContent = formatNumber(raw);
       }
       const kInput = tr.querySelector('td[data-field="k"] input');
       const bInput = tr.querySelector('td[data-field="b"] input');
       const kVal = kInput ? parseFloat(kInput.value) : NaN;
       const bVal = bInput ? parseFloat(bInput.value) : NaN;
-      if (!Number.isFinite(kVal) || !Number.isFinite(bVal)) {
-        valueSpan.textContent = '—';
+      if (!Number.isFinite(kVal) || !Number.isFinite(bVal) || !valueSpan) {
         return;
       }
       const computed = kVal * raw + bVal;
@@ -765,12 +979,23 @@
     });
   }
 
-  async function updateSnapshot() {
+  async function updateSnapshot(options = {}) {
+    const opts = options || {};
+    const silent = Boolean(opts.silent);
+    const reason = typeof opts.reason === 'string' && opts.reason.trim().length ? opts.reason.trim() : '';
+    const suffix = reason.length ? ` (${reason})` : '';
+    if (!silent) {
+      logEvent(`Lecture des valeurs instantanées${suffix}...`, 'info');
+    }
+    let success = false;
+    let map = latestSnapshotRaw;
     try {
       const res = await fetch('/api/io/snapshot');
-      if (!res.ok) throw new Error('snapshot failed');
+      if (!res.ok) {
+        throw new Error(`statut ${res.status}`);
+      }
       const data = await res.json();
-      const map = new Map();
+      map = new Map();
       if (data && Array.isArray(data.channels)) {
         data.channels.forEach(ch => {
           if (!ch || typeof ch.id !== 'string') return;
@@ -780,16 +1005,68 @@
           }
         });
       }
+      const hadErrorBefore = snapshotErrorNotified;
       latestSnapshotRaw = map;
+      snapshotErrorNotified = false;
+      success = true;
+      if (!silent) {
+        logEvent(`Valeurs instantanées mises à jour (${map.size} canal(aux)).`, 'success');
+      } else if (snapshotLogCount === 0 || hadErrorBefore) {
+        logEvent(`Valeurs instantanées disponibles (${map.size} canal(aux)).`, 'success');
+      }
+      snapshotLogCount += 1;
     } catch (err) {
-      // Keep previous snapshot on error.
+      const reasonText = err && err.message ? err.message : String(err);
+      if (!silent || !snapshotErrorNotified) {
+        logEvent(`Impossible de mettre à jour les valeurs instantanées${suffix} : ${reasonText}`, 'error');
+      }
+      snapshotErrorNotified = true;
+    } finally {
+      refreshValueColumn();
     }
-    refreshValueColumn();
+    return success;
   }
 
   function startSnapshotPolling() {
     if (snapshotTimer) return;
-    snapshotTimer = setInterval(updateSnapshot, 4000);
+    snapshotTimer = setInterval(() => {
+      updateSnapshot({ silent: true, reason: 'sondage' });
+    }, 4000);
+    logEvent('Surveillance périodique des mesures démarrée.', 'info');
+  }
+
+  function setupCollapsibleNavigation() {
+    const links = document.querySelectorAll('nav.quick-links a[href^="#"]');
+    links.forEach(link => {
+      link.addEventListener('click', () => {
+        const targetId = link.getAttribute('href');
+        if (!targetId) return;
+        const section = document.querySelector(targetId);
+        if (!section) return;
+        const details = section.querySelector('details.collapsible-toggle');
+        if (details) {
+          details.open = true;
+        }
+      });
+    });
+    if (window.location.hash) {
+      const section = document.querySelector(window.location.hash);
+      if (section) {
+        const details = section.querySelector('details.collapsible-toggle');
+        if (details) {
+          details.open = true;
+        }
+      }
+    }
+    window.addEventListener('hashchange', () => {
+      if (!window.location.hash) return;
+      const section = document.querySelector(window.location.hash);
+      if (!section) return;
+      const details = section.querySelector('details.collapsible-toggle');
+      if (details) {
+        details.open = true;
+      }
+    });
   }
 
   function updateTableStatus(message) {
@@ -848,6 +1125,13 @@
     bInput.value = Number.isFinite(data.b) ? data.b : 0;
     bCell.appendChild(bInput);
     tr.appendChild(bCell);
+
+    const rawCell = document.createElement('td');
+    rawCell.dataset.field = 'raw';
+    const rawSpan = document.createElement('span');
+    rawSpan.textContent = '—';
+    rawCell.appendChild(rawSpan);
+    tr.appendChild(rawCell);
 
     const valueCell = document.createElement('td');
     valueCell.dataset.field = 'value';
@@ -946,6 +1230,7 @@
     tbody.innerHTML = '';
     let channels = [];
     let loadError = false;
+    logEvent('Chargement de la configuration IO...', 'info');
     try {
       const res = await fetch('/api/config?area=io');
       if (!res.ok) throw new Error('config fetch failed');
@@ -953,6 +1238,8 @@
     } catch (err) {
       loadError = true;
       updateTableStatus('Erreur lors du chargement de la configuration IO.');
+      const reason = err && err.message ? err.message : String(err);
+      logEvent(`Erreur lors du chargement de la configuration IO : ${reason}`, 'error');
     }
     if (!loadError) {
       if (Array.isArray(channels)) {
@@ -967,9 +1254,15 @@
       }
       updateSelectedLabel(null);
       updateTableStatus();
+      const count = Array.isArray(channels) ? channels.length : 0;
+      if (count === 0) {
+        logEvent('Configuration IO chargée : aucune ligne définie.', 'warn');
+      } else {
+        logEvent(`Configuration IO chargée (${count} ligne(s)).`, 'success');
+      }
     }
     refreshValueColumn();
-    await updateSnapshot();
+    await updateSnapshot({ reason: 'après chargement' });
     startSnapshotPolling();
   }
 
@@ -986,6 +1279,7 @@
       unit: defaultCap ? defaultCap.defaultUnit : ''
     });
     tbody.appendChild(newRow);
+    logEvent('Nouvelle ligne ajoutée à la configuration.', 'info');
     updateTableStatus();
     refreshValueColumn();
     const idInput = newRow.querySelector('td[data-field="id"] input');
@@ -1020,6 +1314,7 @@
         unit
       });
     });
+    logEvent(`Enregistrement de la configuration IO (${payload.length} ligne(s))...`, 'info');
     try {
       const res = await fetch('/api/config?area=io', {
         method: 'PUT',
@@ -1028,13 +1323,17 @@
       });
       if (res.ok) {
         updateTableStatus('Configuration enregistrée.');
-        await updateSnapshot();
+        logEvent('Configuration IO enregistrée avec succès.', 'success');
+        await updateSnapshot({ reason: 'après sauvegarde' });
       } else {
         const txt = await res.text();
         updateTableStatus('Erreur lors de l’enregistrement : ' + txt);
+        logEvent(`Erreur HTTP lors de l’enregistrement : ${txt || res.status}`, 'error');
       }
     } catch (err) {
       updateTableStatus('Erreur lors de l’enregistrement de la configuration.');
+      const reason = err && err.message ? err.message : String(err);
+      logEvent(`Exception pendant l’enregistrement : ${reason}`, 'error');
     }
   }
 
@@ -1087,6 +1386,8 @@
     lastComputation = null;
   }
 
+  logEvent('Initialisation de la page IO...', 'info');
+  setupCollapsibleNavigation();
   populateProfiles();
   updateTypeDatalist();
   ensureHardwareCapabilities()
