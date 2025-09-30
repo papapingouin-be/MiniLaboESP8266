@@ -165,6 +165,29 @@
     .gauge-tick{stroke:#2a3546; stroke-width:2; stroke-linecap:round}
     .gauge-tick.minor{stroke-width:1; stroke:#1a2434}
     .gauge-label{fill:#7c8b9f; font-size:10px; font-weight:500; text-shadow:none}
+    .gauge-readout{display:flex; align-items:baseline; gap:6px; font-variant-numeric: tabular-nums}
+    .gauge-value{font-size:32px; font-weight:600; color:#7ef1c6}
+    .gauge-unit{font-size:16px; font-weight:600; color:#bfe7ff}
+    .dmm-controls{display:flex; flex-direction:column; gap:12px}
+    .dmm-controls .control-line{display:flex; flex-wrap:wrap; gap:18px; align-items:flex-start}
+    .dmm-controls .control-group{flex:1 1 220px}
+    .dmm-controls label,
+    .dmm-controls .control-label{display:block; font-size:12px; color:#b5c0cd; margin-bottom:6px}
+    .info-label{position:relative; display:inline-flex; align-items:center; gap:6px; cursor:help}
+    .info-icon{width:16px; height:16px; border-radius:50%; background:#1f2b3d; color:#bfe7ff; font-size:10px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; box-shadow:0 0 0 1px rgba(79,89,110,.45)}
+    .info-label::after{content:attr(data-tooltip); position:absolute; left:0; bottom:calc(100% + 10px); background:#0d1420; color:#d1d8e5; padding:8px 10px; border-radius:8px; border:1px solid #1f2b3d; box-shadow:0 12px 24px rgba(0,0,0,.45); width:220px; max-width:260px; opacity:0; transform:translateY(6px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; line-height:1.4}
+    .info-label:hover::after,
+    .info-label:focus-visible::after{opacity:1; transform:translateY(0)}
+    .info-label:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:4px}
+    .mode-row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+    .mode-buttons{display:flex; flex-wrap:wrap; gap:10px}
+    .mode-row .btn.warn{margin-left:auto}
+    @media (max-width: 720px){
+      .dmm-controls .control-line{flex-direction:column}
+      .mode-row{justify-content:flex-start}
+      .mode-row .btn.warn{margin-left:0}
+    }
+
     .dmm-controls label{display:block; font-size:12px; color:#b5c0cd; margin:8px 0 4px}
     .select, input[type="number"], input[type="text"]{
       width:100%; padding:8px 10px; background:#0c121b; color:var(--text);
@@ -276,20 +299,23 @@
             </div>
           </div>
           <div class="dmm-controls">
-            <label>Canal</label>
-            <select id="dmm-select" class="select"></select>
-            <label>Affichage</label>
-            <div class="row">
-              <button class="btn" data-mode="digits">Chiffres</button>
-              <button class="btn" data-mode="binary">Binaire</button>
-              <button class="btn" data-mode="gauge">Cadran</button>
+            <div class="control-line">
+              <div class="control-group">
+                <label for="dmm-select">Canal</label>
+                <select id="dmm-select" class="select"></select>
+              </div>
+              <div class="control-group">
+                <div class="control-label info-label" data-tooltip="Le DMM est actualisé toutes les 2 s. Les décimales sont définies par la config du canal." tabindex="0">Affichage <span class="info-icon" aria-hidden="true">i</span></div>
+                <div class="mode-row">
+                  <div class="mode-buttons">
+                    <button class="btn" data-mode="digits">Numérique</button>
+                    <button class="btn" data-mode="binary">Binaire</button>
+                    <button class="btn" data-mode="gauge">Cadran</button>
+                  </div>
+                  <button class="btn warn" id="dmm-hold">Hold</button>
+                </div>
+              </div>
             </div>
-            <div class="row compact">
-              <span class="grow"></span>
-              <button class="btn warn" id="dmm-hold">Hold</button>
-            </div>
-            <div class="spacer"></div>
-            <div class="hint">Le DMM est actualisé toutes les 2 s. Les décimales sont définies par la config du canal.</div>
           </div>
         </div>
       </section>
