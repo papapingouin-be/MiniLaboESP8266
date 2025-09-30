@@ -145,8 +145,16 @@ void WebApi::handleIoSnapshot() {
                   "{\"error\":\"io unavailable\"}");
     return;
   }
-  StaticJsonDocument<4096> doc;
+  DynamicJsonDocument doc(4096);
   m_io->snapshot(doc);
+  if (doc.overflowed()) {
+    if (m_logger) {
+      m_logger->error("IO snapshot JSON overflow");
+    }
+    m_server.send(500, "application/json",
+                  "{\"error\":\"snapshot too large\"}");
+    return;
+  }
   String response;
   serializeJson(doc, response);
   m_server.send(200, "application/json", response);
