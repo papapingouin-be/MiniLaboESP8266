@@ -176,7 +176,7 @@
     .dmm-controls .control-label{display:block; font-size:12px; color:#b5c0cd; margin-bottom:6px}
     .info-label{position:relative; display:inline-flex; align-items:center; gap:6px; cursor:help}
     .info-icon{width:16px; height:16px; border-radius:50%; background:#1f2b3d; color:#bfe7ff; font-size:10px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; box-shadow:0 0 0 1px rgba(79,89,110,.45)}
-    .info-label::after{content:attr(data-tooltip); position:absolute; left:0; bottom:calc(100% + 10px); background:#0d1420; color:#d1d8e5; padding:8px 10px; border-radius:8px; border:1px solid #1f2b3d; box-shadow:0 12px 24px rgba(0,0,0,.45); width:220px; max-width:260px; opacity:0; transform:translateY(6px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; line-height:1.4}
+    .info-label::after{content:attr(data-tooltip); position:absolute; left:0; bottom:calc(100% + 10px); background:#0d1420; color:#d1d8e5; padding:8px 10px; border-radius:8px; border:1px solid #1f2b3d; box-shadow:0 12px 24px rgba(0,0,0,.45); width:220px; max-width:260px; opacity:0; transform:translateY(6px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; line-height:1.4; white-space:pre-line}
     .info-label:hover::after,
     .info-label:focus-visible::after{opacity:1; transform:translateY(0)}
     .info-label:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:4px}
@@ -229,15 +229,80 @@
 
     /* Scope */
     .scope-wrap{
-      background:#060a11; border:1px solid #122033; border-radius:12px; overflow:hidden; position:relative;
+      background:#050910;
+      border:1px solid #162235;
+      border-radius:12px;
+      overflow:hidden;
+      position:relative;
+      display:flex;
     }
     .scope-head{
-      display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-bottom:1px solid #122033; background:#09121c;
+      display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid #162235; background:linear-gradient(180deg,#09111d 0%, #060b14 100%);
       font-size:12px; color:#b7c3d1;
+      gap:12px;
     }
-    canvas{ display:block; width:100%; height:220px; background: #0a0f16}
-    .scope-meta{display:flex; gap:8px; align-items:center}
+    .scope-head-right{display:flex; align-items:center; gap:10px}
+    .scope-meta{display:flex; gap:10px; align-items:center}
     .scope-led{width:8px;height:8px;border-radius:50%; background:#67e8f9; box-shadow:0 0 10px rgba(76,195,255,.6)}
+    .scope-body{display:flex; width:100%; min-height:230px}
+    .scope-screen{flex:1 1 auto; position:relative; min-height:220px}
+    .scope-screen canvas{display:block; width:100%; height:100%; background:#050910}
+    .scope-popups{position:absolute; inset:0; pointer-events:none}
+    .scope-popup{position:absolute; pointer-events:auto}
+    .scope-popup.info-label{background:rgba(10,18,28,.85); border-radius:999px; padding:4px 10px; font-size:11px; color:#9fb5c9; border:1px solid rgba(60,97,132,.5); box-shadow:0 6px 18px rgba(0,0,0,.35)}
+    #scope-ref-popup{top:14px; left:18px}
+    #scope-scale-popup{bottom:18px; left:18px}
+    #scope-zero-popup{top:50%; left:18px; transform:translateY(-50%)}
+    .scope-controls{
+      flex:0 0 150px;
+      border-left:1px solid #162235;
+      background:linear-gradient(180deg,#060b14 0%, #050910 100%);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:18px;
+      padding:16px 12px;
+    }
+    .scope-control{display:flex; flex-direction:column; align-items:center; gap:12px; width:100%}
+    .scope-control .control-label{font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:#8fa3b9; text-align:center}
+    .scope-time-wheel{display:flex; flex-direction:column; align-items:center; gap:12px}
+    #scope-timebase-range{
+      -webkit-appearance:none;
+      appearance:none;
+      writing-mode: bt-lr;
+      -webkit-writing-mode: bt-lr;
+      width:34px;
+      height:160px;
+      background:linear-gradient(180deg,#0b1521 0%, #0a121c 100%);
+      border-radius:999px;
+      border:1px solid #1b2a3c;
+      box-shadow: inset 0 0 12px rgba(0,0,0,.45), 0 6px 18px rgba(0,0,0,.25);
+      padding:6px 0;
+    }
+    #scope-timebase-range::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background:radial-gradient(circle at 30% 30%, #7fffbf, #2fb28a);
+      box-shadow:0 0 0 2px #041017, 0 6px 10px rgba(0,0,0,.4);
+      border:1px solid #1a3a32;
+    }
+    #scope-timebase-range::-moz-range-thumb{
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background:radial-gradient(circle at 30% 30%, #7fffbf, #2fb28a);
+      box-shadow:0 0 0 2px #041017, 0 6px 10px rgba(0,0,0,.4);
+      border:1px solid #1a3a32;
+    }
+    #scope-timebase-range::-moz-range-track{
+      background:transparent;
+      border:none;
+    }
+    .scope-time-readout{font-size:13px; font-variant-numeric:tabular-nums; font-weight:600; color:#9be7ff; text-shadow:0 0 8px rgba(90,207,255,.25)}
+    .scope-control-status{font-size:11px; text-align:center; color:#6e7d90; min-height:14px}
 
     /* Math editor */
     .math{
@@ -382,12 +447,35 @@
         <div class="content single">
           <div class="scope-wrap">
             <div class="scope-head">
-              <div class="scope-meta"><span class="scope-led"></span> Live</div>
-              <div class="muted" id="scope-meta">—</div>
+              <div class="scope-meta">
+                <span class="scope-led"></span>
+                <span>Live</span>
+                <span class="info-label" id="scope-trace-info" data-tooltip="—" tabindex="0">Trace <span class="info-icon" aria-hidden="true">i</span></span>
+              </div>
+              <div class="scope-head-right info-label" id="scope-meta" data-tooltip="—" tabindex="0">Acquisition <span class="info-icon" aria-hidden="true">i</span></div>
             </div>
-            <canvas id="scope-canvas" width="800" height="240"></canvas>
+            <div class="scope-body">
+              <div class="scope-screen" id="scope-screen">
+                <canvas id="scope-canvas" width="800" height="240" role="img" aria-label="Tracé oscilloscope"></canvas>
+                <div class="scope-popups">
+                  <div class="scope-popup info-label" id="scope-ref-popup" data-tooltip="0 V (réf. lecture)" tabindex="0">Réf 0 V <span class="info-icon" aria-hidden="true">i</span></div>
+                  <div class="scope-popup info-label" id="scope-zero-popup" data-tooltip="Ligne 0 V, utilisez l’offset pour centrer le signal." tabindex="0">0 V <span class="info-icon" aria-hidden="true">i</span></div>
+                  <div class="scope-popup info-label" id="scope-scale-popup" data-tooltip="—" tabindex="0">Échelle <span class="info-icon" aria-hidden="true">i</span></div>
+                </div>
+              </div>
+              <div class="scope-controls">
+                <div class="scope-control">
+                  <div class="control-label info-label" data-tooltip="Ajuste la durée affichée pour une division horizontale." tabindex="0">Base de temps <span class="info-icon" aria-hidden="true">i</span></div>
+                  <div class="scope-time-wheel">
+                    <input type="range" id="scope-timebase-range" min="0" max="0" value="0" step="1" aria-label="Base de temps (ms par division)" />
+                    <div class="scope-time-readout" id="scope-timebase-readout">—</div>
+                  </div>
+                  <div class="scope-control-status" id="scope-timebase-status" aria-live="polite"></div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="hint">Affichage 1 canal. La base de temps et la V/div se règlent dans la page Scope complète.</div>
+          <div class="hint">Affichage 1 canal. Ajuste la base de temps ici ou passe sur la page Scope complète pour plus d’options.</div>
         </div>
       </section>
 
@@ -852,73 +940,258 @@
     /* --------- SCOPE (aperçu 1 canal) --------- */
     const scopeCanvas = $('#scope-canvas');
     const ctx = scopeCanvas.getContext('2d');
+    const scopeMeta = $('#scope-meta');
+    const scopeTraceInfo = $('#scope-trace-info');
+    const scopeScalePopup = $('#scope-scale-popup');
+    const scopeRefPopup = $('#scope-ref-popup');
+    const scopeTimebaseRange = $('#scope-timebase-range');
+    const scopeTimebaseReadout = $('#scope-timebase-readout');
+    const scopeTimebaseStatus = $('#scope-timebase-status');
+    const scopeTimebasePill = $('#scope-timebase');
+    const scopeTimebaseValues = [0.05,0.1,0.2,0.5,1,2,5,10,20,50,100,200,500,1000,2000];
+    const scopeLayout = {cols:10, rows:8, marginX:32, marginY:26, subDivs:5};
+
+    if(scopeTimebaseRange){
+      scopeTimebaseRange.max = scopeTimebaseValues.length-1;
+      scopeTimebaseRange.setAttribute('max', scopeTimebaseValues.length-1);
+    }
+
     function drawGrid(){
       const w=scopeCanvas.width, h=scopeCanvas.height;
-      ctx.fillStyle = '#0a0f16'; ctx.fillRect(0,0,w,h);
-      // grille principale 10x8
-      const cols=10, rows=8;
-      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid');
-      ctx.lineWidth=1;
-      for(let i=0;i<=cols;i++){
-        const x = Math.round(i*w/cols)+.5;
-        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
-      }
-      for(let j=0;j<=rows;j++){
-        const y = Math.round(j*h/rows)+.5;
-        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
-      }
+      const {cols, rows, marginX, marginY, subDivs} = scopeLayout;
+      const innerW = w - marginX*2;
+      const innerH = h - marginY*2;
+      ctx.save();
+      ctx.fillStyle = '#050910';
+      ctx.fillRect(0,0,w,h);
+      ctx.translate(marginX, marginY);
+
       // sous-grille
-      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-sub');
-      ctx.lineWidth=1;
-      const sub=5;
+      ctx.strokeStyle = '#0c1521';
+      ctx.lineWidth = 1;
       for(let i=0;i<cols;i++){
-        for(let s=1;s<sub;s++){
-          const x = Math.round((i+s/sub)*w/cols)+.5;
-          ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+        for(let s=1;s<subDivs;s++){
+          const x = Math.round((i + s/subDivs) * innerW / cols) + 0.5;
+          ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,innerH); ctx.stroke();
         }
       }
       for(let j=0;j<rows;j++){
-        for(let s=1;s<sub;s++){
-          const y = Math.round((j+s/sub)*h/rows)+.5;
-          ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+        for(let s=1;s<subDivs;s++){
+          const y = Math.round((j + s/subDivs) * innerH / rows) + 0.5;
+          ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(innerW,y); ctx.stroke();
         }
       }
-    }
-    function plot(samples, color='#4cc3ff'){
-      const w=scopeCanvas.width, h=scopeCanvas.height;
-      if(!samples || samples.length<2){ return; }
-      ctx.strokeStyle = color;
-      ctx.lineWidth=2;
-      ctx.beginPath();
-      const N = samples.length;
-      // Compute scale using max absolute value, fallback 1
-      let vmax = 1;
-      for(let i=0;i<N;i++){
-        const v = Math.abs(samples[i]);
-        if(v>vmax) vmax = v;
+
+      // grille principale
+      ctx.strokeStyle = '#1b2d42';
+      ctx.lineWidth = 1.4;
+      for(let i=1;i<cols;i++){
+        const x = Math.round(i*innerW/cols) + 0.5;
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,innerH); ctx.stroke();
       }
-      const yMid = h/2, scale = (h*0.4)/vmax;
+      for(let j=1;j<rows;j++){
+        const y = Math.round(j*innerH/rows) + 0.5;
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(innerW,y); ctx.stroke();
+      }
+
+      // axes centraux
+      ctx.strokeStyle = '#2e4c68';
+      ctx.lineWidth = 2;
+      const midX = Math.round(innerW/2) + 0.5;
+      const midY = Math.round(innerH/2) + 0.5;
+      ctx.beginPath(); ctx.moveTo(midX,0); ctx.lineTo(midX,innerH); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,midY); ctx.lineTo(innerW,midY); ctx.stroke();
+
+      // ligne de référence 0 V
+      ctx.save();
+      ctx.setLineDash([6,4]);
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(0,midY); ctx.lineTo(innerW,midY); ctx.stroke();
+      ctx.restore();
+
+      // cadre
+      ctx.strokeStyle = '#2f3d52';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0.5,0.5,innerW-1,innerH-1);
+
+      ctx.restore();
+    }
+
+    function formatVolt(value, suffix=''){
+      if(value === null || value === undefined || Number.isNaN(value)) return '—';
+      const abs = Math.abs(value);
+      const unit = abs >= 1 ? 'V' : 'mV';
+      const factor = abs >= 1 ? 1 : 1000;
+      const digits = abs >= 1 ? 2 : 1;
+      const num = (value * factor).toFixed(digits);
+      return `${num} ${unit}${suffix}`;
+    }
+
+    function formatTimebase(ms){
+      if(ms === null || ms === undefined || Number.isNaN(ms)) return '—';
+      if(ms >= 1000){
+        const value = ms/1000;
+        const digits = value >= 10 ? 0 : 2;
+        return `${value.toFixed(digits)} s/div`;
+      }
+      if(ms >= 1){
+        const digits = ms >= 10 ? 0 : 2;
+        return `${ms.toFixed(digits)} ms/div`;
+      }
+      const us = ms*1000;
+      const digits = us >= 10 ? 0 : 2;
+      return `${us.toFixed(digits)} µs/div`;
+    }
+
+    function updateTimebaseDisplay(ms, opts={}){
+      const {updatePill=true} = opts;
+      const label = formatTimebase(ms);
+      if(scopeTimebaseReadout){ scopeTimebaseReadout.textContent = label; }
+      if(updatePill && scopeTimebasePill){ scopeTimebasePill.textContent = label; }
+    }
+
+    function ensureTimebaseIndex(ms){
+      if(typeof ms !== 'number' || !isFinite(ms) || !scopeTimebaseRange){ return 0; }
+      let idx = scopeTimebaseValues.findIndex(v=>Math.abs(v-ms) < 1e-6);
+      if(idx === -1){
+        scopeTimebaseValues.push(ms);
+        scopeTimebaseValues.sort((a,b)=>a-b);
+        idx = scopeTimebaseValues.indexOf(ms);
+        scopeTimebaseRange.max = scopeTimebaseValues.length-1;
+        scopeTimebaseRange.setAttribute('max', scopeTimebaseValues.length-1);
+      }
+      return idx;
+    }
+
+    function plot(samples, color='#64ffda'){
+      const w=scopeCanvas.width, h=scopeCanvas.height;
+      const {cols, rows, marginX, marginY} = scopeLayout;
+      const innerW = w - marginX*2;
+      const innerH = h - marginY*2;
+      const xStart = marginX;
+      const yMid = marginY + innerH/2;
+      if(!samples || samples.length<2){ return null; }
+
+      const N = samples.length;
+      let min = samples[0], max = samples[0], sum = 0;
       for(let i=0;i<N;i++){
-        const x = i*(w-10)/(N-1)+5;
+        const v = samples[i];
+        if(v<min) min = v;
+        if(v>max) max = v;
+        sum += v;
+      }
+      const amplitude = Math.max(Math.abs(min), Math.abs(max));
+      const rowsHalf = rows/2;
+      const verticalPixelsPerDiv = innerH / rows;
+      const voltsPerDiv = amplitude === 0 ? 0.1 : Math.max(amplitude/(rowsHalf*0.8), 0.0001);
+      const scale = verticalPixelsPerDiv / voltsPerDiv;
+      const xStep = innerW/(N-1);
+
+      ctx.save();
+      ctx.lineWidth = 2.4;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.shadowColor = 'rgba(100,255,218,0.25)';
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      for(let i=0;i<N;i++){
+        const x = xStart + i*xStep;
         const y = yMid - samples[i]*scale;
         if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
       }
       ctx.stroke();
+      ctx.restore();
+
+      return {min, max, mean: sum/N, voltsPerDiv};
+    }
+
+    function updateScopeDetails(meta, count){
+      let lines = '—';
+      if(meta){
+        lines = [
+          `Points : ${count}`,
+          `Min : ${formatVolt(meta.min)}`,
+          `Max : ${formatVolt(meta.max)}`,
+          `Moyenne : ${formatVolt(meta.mean)}`,
+          meta.voltsPerDiv ? `Échelle approx. : ${formatVolt(meta.voltsPerDiv, '/div')}` : null
+        ].filter(Boolean).join('\n');
+      }else if(count){
+        lines = `Points : ${count}`;
+      }
+      if(scopeMeta){ scopeMeta.setAttribute('data-tooltip', lines || '—'); }
+
+      const traceLines = meta ? [
+        `Vpp : ${formatVolt(meta.max - meta.min)}`,
+        meta.voltsPerDiv ? `1 div ≈ ${formatVolt(meta.voltsPerDiv)}` : null
+      ].filter(Boolean).join('\n') : '—';
+      if(scopeTraceInfo){ scopeTraceInfo.setAttribute('data-tooltip', traceLines || '—'); }
+
+      if(scopeScalePopup){
+        scopeScalePopup.setAttribute('data-tooltip', meta && meta.voltsPerDiv ? `≈ ${formatVolt(meta.voltsPerDiv, '/div')}` : '—');
+      }
+      if(scopeRefPopup){
+        scopeRefPopup.setAttribute('data-tooltip', '0 V (réf. lecture)\nLigne rouge pointillée = niveau de référence.');
+      }
+    }
+
+    function getTimebaseFromSlider(){
+      if(!scopeTimebaseRange){ return null; }
+      const idx = Math.min(scopeTimebaseValues.length-1, Math.max(0, parseInt(scopeTimebaseRange.value,10)||0));
+      return scopeTimebaseValues[idx];
+    }
+
+    async function applyScopeTimebase(ms){
+      if(!scopeTimebaseRange) return;
+      updateTimebaseDisplay(ms);
+      if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Envoi…'; }
+      try{
+        const r = await j('/api/scope/timebase',{method:'POST', body: JSON.stringify({ms_per_div: ms})});
+        if(!r.ok) throw new Error('bad');
+        scopeTimebaseStatus.textContent = 'Synchronisé';
+        setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 1500);
+      }catch(e){
+        if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Erreur de réglage.'; }
+        setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2000);
+      }
+    }
+
+    if(scopeTimebaseRange){
+      scopeTimebaseRange.addEventListener('input', ()=>{
+        const ms = getTimebaseFromSlider();
+        updateTimebaseDisplay(ms, {updatePill:false});
+      });
+      scopeTimebaseRange.addEventListener('change', ()=>{
+        const ms = getTimebaseFromSlider();
+        applyScopeTimebase(ms);
+      });
     }
     async function loadScope(){
       try{
         const r = await j('/api/scope');
-        if(!r.ok) return;
+        if(!r.ok) throw new Error('scope');
         const data = await r.json();
         const chNames = Object.keys(data.channels||{});
         const first = chNames[0];
         const samples = first ? data.channels[first] : null;
         $('#scope-chan').textContent = first || '—';
-        $('#scope-timebase').textContent = (data.timebase_ms_per_div ?? '—') + ' ms/div';
-        $('#scope-meta').textContent = samples ? (samples.length+' pts') : '—';
-        drawGrid(); plot(samples||[]);
+
+        const timebase = typeof data.timebase_ms_per_div === 'number' ? data.timebase_ms_per_div : null;
+        if(scopeTimebaseRange && timebase !== null){
+          const idx = ensureTimebaseIndex(timebase);
+          scopeTimebaseRange.value = String(idx);
+        }
+        updateTimebaseDisplay(timebase);
+        if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = scopeTimebaseStatus.textContent === 'Synchronisé' ? scopeTimebaseStatus.textContent : ''; }
+
+        drawGrid();
+        const meta = plot(samples||[]);
+        updateScopeDetails(meta, samples ? samples.length : 0);
       }catch(e){
         drawGrid();
+        updateScopeDetails(null, 0);
+        updateTimebaseDisplay(null);
       }
     }
 
