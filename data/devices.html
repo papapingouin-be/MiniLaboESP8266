@@ -116,12 +116,15 @@
     .pill{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; color:#0b1220; background:#b9f6da}
     .pill.blue{background:#bfe7ff}
     .content{padding:14px; display:grid; grid-template-columns: 1.2fr .8fr; gap:14px; height:calc(100% - 52px)}
+    .content.dmm-vertical{display:flex; flex-direction:column}
+    .content.dmm-vertical .dmm-display{flex:1; min-height:0}
+    .content.dmm-vertical .dmm-controls{margin-top:14px}
     .content.single{grid-template-columns: 1fr}
 
     /* DMM styles */
     .dmm-display{
       background: radial-gradient(600px 200px at 50% -10%, #0c111b 0%, #0c111b 60%, #0a0f18 100%);
-      border:1px solid #1a2332; border-radius:12px; padding:12px 14px; height:220px;
+      border:1px solid #1a2332; border-radius:12px; padding:12px 14px; min-height:220px;
       display:flex; justify-content:center; align-items:center; position:relative; overflow:hidden;
       text-shadow: 0 0 6px rgba(54,211,153,0.2);
     }
@@ -162,9 +165,6 @@
     .gauge-tick{stroke:#2a3546; stroke-width:2; stroke-linecap:round}
     .gauge-tick.minor{stroke-width:1; stroke:#1a2434}
     .gauge-label{fill:#7c8b9f; font-size:10px; font-weight:500; text-shadow:none}
-    .gauge-readout{display:flex; align-items:baseline; gap:6px; font-variant-numeric: tabular-nums}
-    .gauge-value{font-size:32px; font-weight:600; color:#7ef1c6}
-    .gauge-unit{font-size:16px; font-weight:600; color:#bfe7ff}
     .dmm-controls label{display:block; font-size:12px; color:#b5c0cd; margin:8px 0 4px}
     .select, input[type="number"], input[type="text"]{
       width:100%; padding:8px 10px; background:#0c121b; color:var(--text);
@@ -249,7 +249,7 @@
         <div class="bezel"></div>
         <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
         <h2>Multimètre <span class="badge" id="dmm-channel">CH1</span> <span class="pill" id="dmm-mode-pill">UDC</span></h2>
-        <div class="content">
+        <div class="content dmm-vertical">
           <div class="dmm-display">
             <div class="dmm-view active" data-view="digits">
               <div class="digits"><span class="digits-value" id="dmm-value">—.—</span><span class="digits-unit" id="dmm-unit-inline">V</span></div>
@@ -272,10 +272,6 @@
                   <line id="dmm-gauge-needle" class="gauge-needle" x1="100" y1="120" x2="100" y2="40" />
                   <circle class="gauge-hub" cx="100" cy="120" r="6" />
                 </svg>
-              </div>
-              <div class="gauge-readout">
-                <span class="gauge-value" id="dmm-gauge-reading">—.—</span>
-                <span class="gauge-unit" id="dmm-gauge-unit">V</span>
               </div>
             </div>
           </div>
@@ -600,10 +596,6 @@
       }
     }
     function updateDmmGauge(value, formatted, unit, meta, snapshot, ioId){
-      const reading = document.getElementById('dmm-gauge-reading');
-      const unitEl = document.getElementById('dmm-gauge-unit');
-      if(reading) reading.textContent = formatted;
-      if(unitEl) unitEl.textContent = unit || '';
       const range = getGaugeRange(ioId, meta, snapshot, value);
       updateGaugeTicks(range);
       const needle = document.getElementById('dmm-gauge-needle');
