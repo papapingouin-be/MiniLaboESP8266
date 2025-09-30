@@ -126,11 +126,20 @@
       text-shadow: 0 0 6px rgba(54,211,153,0.2);
     }
     .digits{
-      font-variant-numeric: tabular-nums;
-      font-size:56px; line-height:1; font-weight:700; letter-spacing:1px;
+      display:flex; align-items:flex-end; gap:12px;
+    }
+    .digits span{
       background: linear-gradient(180deg, #c7ffe7 0%, #7ef1c6 40%, #3bd098 60%, #1aaa73 100%);
       -webkit-background-clip:text; background-clip:text; color:transparent;
       filter: drop-shadow(0 5px 12px rgba(54, 211, 153, .18));
+      display:inline-flex; align-items:flex-end;
+    }
+    .digits-value{
+      font-variant-numeric: tabular-nums;
+      font-size:56px; line-height:1; font-weight:700; letter-spacing:1px;
+    }
+    .digits-unit{
+      font-size:28px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; padding-bottom:6px;
     }
     .dmm-meta{font-size:12px; color:var(--sub)}
     .dmm-controls label{display:block; font-size:12px; color:#b5c0cd; margin:8px 0 4px}
@@ -147,6 +156,8 @@
     .btn.warn{ border-color:#3b2f1f; background:linear-gradient(180deg,#3b2f1f,#2a2117); color:#ffd7a7}
     .row{display:flex; gap:10px}
     .row>*{flex:1}
+    .row.compact>*{flex:0 0 auto}
+    .row.compact .grow{flex:1 1 auto}
     .badge{font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #334155; color:#cbd5e1; background:#0b1220; display:inline-block}
 
     /* Generator */
@@ -213,12 +224,12 @@
       <section class="card" id="card-dmm">
         <div class="bezel"></div>
         <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
-        <h2>Multimètre <span class="badge" id="dmm-channel">CH1</span> <span class="pill">UDC</span></h2>
+        <h2>Multimètre <span class="badge" id="dmm-channel">CH1</span> <span class="pill" id="dmm-mode-pill">UDC</span></h2>
         <div class="content">
           <div class="dmm-display">
-            <div class="digits" id="dmm-value">—.—</div>
+            <div class="digits"><span class="digits-value" id="dmm-value">—.—</span><span class="digits-unit" id="dmm-unit-inline">V</span></div>
             <div class="spacer"></div>
-            <div class="dmm-meta"><span id="dmm-source" class="muted">source: —</span> <span class="unit">V</span></div>
+            <div class="dmm-meta" id="dmm-meta">Entrée : — • Mode : — • Décimales : —</div>
           </div>
           <div class="dmm-controls">
             <label>Canal</label>
@@ -229,8 +240,8 @@
               <button class="btn" data-mode="binary">Binaire</button>
               <button class="btn" data-mode="gauge">Cadran</button>
             </div>
-            <div class="row">
-              <button class="btn primary" id="dmm-refresh">Rafraîchir</button>
+            <div class="row compact">
+              <span class="grow"></span>
               <button class="btn warn" id="dmm-hold">Hold</button>
             </div>
             <div class="spacer"></div>
@@ -333,33 +344,169 @@
 
     /* --------- DMM --------- */
     let dmmHold = false, dmmMode = 'digits';
-    async function loadDmm() {
+    const dmmState = { config: [], snapshot: [], holdValue: null, holdUnit: null };
+
+    function getDmmMeta(ioId){
+      return dmmState.config.find(ch=>ch.io===ioId) || null;
+    }
+    function updateDmmHeader(meta){
+      const badge = $('#dmm-channel');
+      const pill = $('#dmm-mode-pill');
+      if(badge) badge.textContent = meta?.label || meta?.io || '—';
+      if(pill) pill.textContent = meta?.mode || '—';
+    }
+    function buildFallbackMeta(snapshot){
+      return snapshot.map((ch, idx)=>({
+        label: `CH${idx+1}`,
+        io: ch.id || `CH${idx+1}`,
+        mode: 'UDC',
+        decimals: 2,
+        unit: ch.unit || ''
+      }));
+    }
+    function ensureDmmOptions(snapshot){
+      const sel = $('#dmm-select');
+      if(!sel) return;
+      const previous = sel.value;
+      const metaList = dmmState.config.length ? dmmState.config : buildFallbackMeta(snapshot||[]);
+      if(!metaList.length){
+        sel.innerHTML='';
+        updateDmmHeader(null);
+        return;
+      }
+      sel.innerHTML='';
+      metaList.forEach(meta=>{
+        const opt=document.createElement('option');
+        opt.value = meta.io;
+        const baseLabel = meta.label || meta.io || '—';
+        const detail = meta.io && meta.io !== baseLabel ? ` — ${meta.io}` : '';
+        const modeLabel = meta.mode ? ` (${meta.mode})` : '';
+        opt.textContent = `${baseLabel}${detail}${modeLabel}`;
+        sel.appendChild(opt);
+      });
+      if(previous && metaList.some(m=>m.io===previous)){
+        sel.value = previous;
+      }
+      if(!sel.value){
+        sel.value = metaList[0].io;
+      }
+      const currentMeta = metaList.find(m=>m.io===sel.value) || metaList[0];
+      updateDmmHeader(currentMeta);
+    }
+    function renderDmm(){
+      const sel = $('#dmm-select');
+      if(!sel) return;
+      const ioId = sel.value || dmmState.config[0]?.io || dmmState.snapshot[0]?.id || '';
+      if(!sel.value && ioId) sel.value = ioId;
+      const snapshot = dmmState.snapshot.find(ch=>ch.id===ioId) || dmmState.snapshot[0];
+      const meta = getDmmMeta(ioId) || (snapshot ? {
+        label: snapshot.id || '—',
+        io: snapshot.id || '—',
+        mode: 'UDC',
+        decimals: 2,
+        unit: snapshot.unit || ''
+      } : null);
+      if(meta) updateDmmHeader(meta);
+      const unit = (snapshot?.unit ?? meta?.unit ?? '').toString();
+      let formatted = '—.—';
+      if(snapshot && snapshot.value !== undefined && snapshot.value !== null){
+        const valueNumber = Number(snapshot.value);
+        const decimals = typeof meta?.decimals === 'number' ? meta.decimals : null;
+        if(Number.isFinite(valueNumber)){
+          formatted = decimals !== null ? valueNumber.toFixed(decimals) : valueNumber.toString();
+        }else{
+          formatted = String(snapshot.value);
+        }
+      }
+      if(dmmHold && dmmState.holdValue !== null){
+        $('#dmm-value').textContent = dmmState.holdValue;
+        $('#dmm-unit-inline').textContent = dmmState.holdUnit ?? unit;
+      }else{
+        $('#dmm-value').textContent = formatted;
+        $('#dmm-unit-inline').textContent = unit;
+        if(dmmHold){
+          dmmState.holdValue = formatted;
+          dmmState.holdUnit = unit;
+        }
+      }
+      const metaParts = [];
+      metaParts.push('Entrée : ' + (meta?.io || snapshot?.id || '—'));
+      metaParts.push('Mode : ' + (meta?.mode || '—'));
+      metaParts.push('Décimales : ' + (typeof meta?.decimals === 'number' ? meta.decimals : '—'));
+      $('#dmm-meta').textContent = metaParts.join(' • ');
+    }
+    async function loadDmmConfig(){
+      try{
+        const r = await j('/api/config?area=dmm');
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const cfg = await r.json();
+        if(Array.isArray(cfg)){
+          dmmState.config = cfg.map((entry, idx)=>{
+            const mode = entry.mode || entry.acquisition || 'UDC';
+            return {
+              label: entry.name || `CH${idx+1}`,
+              io: entry.io || `CH${idx+1}`,
+              mode,
+              decimals: typeof entry.decimals === 'number' ? entry.decimals : 2,
+              unit: entry.unit || (mode === 'UDC' ? 'V' : ''),
+            };
+          });
+        }else{
+          dmmState.config = [];
+        }
+      }catch(e){
+        console.warn(e);
+        dmmState.config = [];
+      }
+      ensureDmmOptions(dmmState.snapshot);
+      renderDmm();
+    }
+    async function loadDmm(){
       try{
         const r = await j('/api/dmm');
         if(!r.ok) throw new Error('HTTP '+r.status);
         const data = await r.json();
-        // data: soit {CH1:"1.650",...} soit {display:{...}, meta:{...}}
-        const display = data.display || data;
-        const keys = Object.keys(display);
-        if(keys.length===0) return;
+        const channels = Array.isArray(data.channels) ? data.channels : [];
+        dmmState.snapshot = channels.map((ch, idx)=>({
+          id: ch.id || ch.name || `CH${idx+1}`,
+          raw: ch.raw,
+          value: ch.value,
+          unit: ch.unit
+        }));
         const sel = $('#dmm-select');
-        if(sel.options.length===0){
-          keys.forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=k; sel.appendChild(o); });
-          sel.value = keys.includes('CH1')?'CH1':keys[0];
-          $('#dmm-channel').textContent = sel.value;
+        if(sel && sel.options.length===0){
+          ensureDmmOptions(dmmState.snapshot);
         }
-        const ch = sel.value;
         if(!dmmHold){
-          $('#dmm-value').textContent = display[ch] ?? '—.—';
+          dmmState.holdValue = null;
+          dmmState.holdUnit = null;
         }
-        $('#dmm-source').textContent = 'source : '+ch;
+        renderDmm();
       }catch(e){
         console.warn(e);
       }
     }
-    $('#dmm-refresh').addEventListener('click',loadDmm);
-    $('#dmm-hold').addEventListener('click',()=>{ dmmHold = !dmmHold; $('#dmm-hold').textContent = dmmHold?'Hold (ON)':'Hold'; });
-    $('#dmm-select').addEventListener('change',(e)=>{ $('#dmm-channel').textContent = e.target.value; loadDmm(); });
+    $('#dmm-hold').addEventListener('click',()=>{
+      dmmHold = !dmmHold;
+      if(dmmHold){
+        dmmState.holdValue = $('#dmm-value').textContent;
+        dmmState.holdUnit = $('#dmm-unit-inline').textContent;
+      }else{
+        dmmState.holdValue = null;
+        dmmState.holdUnit = null;
+        renderDmm();
+      }
+      $('#dmm-hold').textContent = dmmHold?'Hold (ON)':'Hold';
+    });
+    $('#dmm-select').addEventListener('change',(e)=>{
+      const meta = getDmmMeta(e.target.value) || dmmState.config[0] || null;
+      updateDmmHeader(meta);
+      if(dmmHold){
+        dmmState.holdValue = null;
+        dmmState.holdUnit = null;
+      }
+      renderDmm();
+    });
     document.querySelectorAll('#card-dmm [data-mode]').forEach(b=>b.addEventListener('click',()=>{
       dmmMode = b.dataset.mode;
       // Ici on conserve l’affichage numérique; les autres modes sont dans la page DMM complète.
@@ -500,13 +647,17 @@
     $('#math-save').addEventListener('click', saveMath);
 
     /* --------- Boot --------- */
-    function boot(){
+    async function boot(){
       drawGrid();
-      loadDmm(); loadIOForFunc(); loadMath(); loadScope();
+      await loadDmmConfig();
+      await loadDmm();
+      loadIOForFunc();
+      loadMath();
+      loadScope();
       setInterval(()=>{ loadDmm(); }, 2000);   // DMM 2 Hz
       setInterval(()=>{ loadScope(); }, 150);  // Scope ~6-7 fps (léger)
     }
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', ()=>{ boot(); });
   </script>
 </body>
 </html>
