@@ -121,10 +121,12 @@
     /* DMM styles */
     .dmm-display{
       background: radial-gradient(600px 200px at 50% -10%, #0c111b 0%, #0c111b 60%, #0a0f18 100%);
-      border:1px solid #1a2332; border-radius:12px; padding:8px 14px; height:130px;
-      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      border:1px solid #1a2332; border-radius:12px; padding:12px 14px; height:220px;
+      display:flex; justify-content:center; align-items:center; position:relative; overflow:hidden;
       text-shadow: 0 0 6px rgba(54,211,153,0.2);
     }
+    .dmm-view{display:none; flex-direction:column; align-items:center; justify-content:center; gap:12px; width:100%; height:100%; text-align:center}
+    .dmm-view.active{display:flex}
     .digits{
       display:flex; align-items:flex-end; gap:12px;
     }
@@ -142,6 +144,27 @@
       font-size:28px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; padding-bottom:6px;
     }
     .dmm-meta{font-size:12px; color:var(--sub)}
+    .binary-readout{display:flex; flex-direction:column; gap:4px; align-items:center; font-size:12px; color:var(--sub)}
+    .binary-value{font-size:32px; font-weight:600; letter-spacing:1px; color:#7ef1c6}
+    .binary-caption{text-transform:uppercase; letter-spacing:.2em; font-size:10px; color:#637186}
+    .binary-grid{display:grid; grid-template-columns: repeat(auto-fit, minmax(32px,1fr)); gap:8px 10px; justify-items:center; width:100%; max-width:260px}
+    .binary-empty{grid-column:1/-1; font-size:12px; color:#5f6b7c; letter-spacing:.05em; text-transform:uppercase}
+    .binary-cell{display:flex; flex-direction:column; align-items:center; gap:4px}
+    .binary-bit{width:100%; padding:6px 0; border-radius:6px; background:#0b1623; border:1px solid #1f2a3a; font-size:14px; font-weight:600; color:#c7d2e2; box-shadow: inset 0 1px 0 rgba(255,255,255,.05); text-align:center}
+    .binary-bit.on{background:linear-gradient(180deg, rgba(126,241,198,.35) 0%, rgba(59,208,152,.35) 100%); color:#bff6dd; border-color:#2c4a3b}
+    .binary-bit-label{font-size:9px; color:#516072; text-transform:uppercase; letter-spacing:.1em}
+    .binary-meta{font-size:11px; color:#8793a3; text-align:center}
+    .gauge{width:100%; max-width:260px}
+    #dmm-gauge-svg{width:100%; height:auto}
+    .gauge-arc{fill:none; stroke:#1f2b3d; stroke-width:10; stroke-linecap:round}
+    .gauge-needle{stroke:#4cc3ff; stroke-width:4; stroke-linecap:round; filter:drop-shadow(0 0 6px rgba(76,195,255,.6))}
+    .gauge-hub{fill:#0b1220; stroke:#4cc3ff; stroke-width:2}
+    .gauge-tick{stroke:#2a3546; stroke-width:2; stroke-linecap:round}
+    .gauge-tick.minor{stroke-width:1; stroke:#1a2434}
+    .gauge-label{fill:#7c8b9f; font-size:10px; font-weight:500; text-shadow:none}
+    .gauge-readout{display:flex; align-items:baseline; gap:6px; font-variant-numeric: tabular-nums}
+    .gauge-value{font-size:32px; font-weight:600; color:#7ef1c6}
+    .gauge-unit{font-size:16px; font-weight:600; color:#bfe7ff}
     .dmm-controls label{display:block; font-size:12px; color:#b5c0cd; margin:8px 0 4px}
     .select, input[type="number"], input[type="text"]{
       width:100%; padding:8px 10px; background:#0c121b; color:var(--text);
@@ -154,6 +177,7 @@
     }
     .btn.primary{ border-color:#1f3b2f; background:linear-gradient(180deg,#1f3b2f,#15281f); color:#bff6dd}
     .btn.warn{ border-color:#3b2f1f; background:linear-gradient(180deg,#3b2f1f,#2a2117); color:#ffd7a7}
+    .btn.active{border-color:#2f4b66; background:linear-gradient(180deg,#1d2738,#162131); box-shadow:0 0 0 1px rgba(76,195,255,.2), inset 0 1px 0 rgba(255,255,255,.08)}
     .row{display:flex; gap:10px}
     .row>*{flex:1}
     .row.compact>*{flex:0 0 auto}
@@ -227,9 +251,33 @@
         <h2>Multimètre <span class="badge" id="dmm-channel">CH1</span> <span class="pill" id="dmm-mode-pill">UDC</span></h2>
         <div class="content">
           <div class="dmm-display">
-            <div class="digits"><span class="digits-value" id="dmm-value">—.—</span><span class="digits-unit" id="dmm-unit-inline">V</span></div>
-            <div class="spacer"></div>
-            <div class="dmm-meta" id="dmm-meta">Entrée : — • Mode : — • Décimales : —</div>
+            <div class="dmm-view active" data-view="digits">
+              <div class="digits"><span class="digits-value" id="dmm-value">—.—</span><span class="digits-unit" id="dmm-unit-inline">V</span></div>
+              <div class="spacer"></div>
+              <div class="dmm-meta" id="dmm-meta">Entrée : — • Mode : — • Décimales : —</div>
+            </div>
+            <div class="dmm-view" data-view="binary">
+              <div class="binary-readout">
+                <div class="binary-value" id="dmm-binary-value">—</div>
+                <div class="binary-caption">Valeur brute</div>
+              </div>
+              <div class="binary-grid" id="dmm-binary"></div>
+              <div class="binary-meta" id="dmm-binary-meta"></div>
+            </div>
+            <div class="dmm-view" data-view="gauge">
+              <div class="gauge" id="dmm-gauge">
+                <svg id="dmm-gauge-svg" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid meet">
+                  <path id="dmm-gauge-arc" class="gauge-arc" d="M20 160 A80 80 0 0 1 180 160" />
+                  <g id="dmm-gauge-ticks"></g>
+                  <line id="dmm-gauge-needle" class="gauge-needle" x1="100" y1="120" x2="100" y2="40" />
+                  <circle class="gauge-hub" cx="100" cy="120" r="6" />
+                </svg>
+              </div>
+              <div class="gauge-readout">
+                <span class="gauge-value" id="dmm-gauge-reading">—.—</span>
+                <span class="gauge-unit" id="dmm-gauge-unit">V</span>
+              </div>
+            </div>
           </div>
           <div class="dmm-controls">
             <label>Canal</label>
@@ -344,7 +392,17 @@
 
     /* --------- DMM --------- */
     let dmmHold = false, dmmMode = 'digits';
-    const dmmState = { config: [], snapshot: [], holdValue: null, holdUnit: null };
+    const dmmState = {
+      config: [],
+      snapshot: [],
+      holdValue: null,
+      holdUnit: null,
+      holdNumeric: null,
+      holdBinary: null,
+      lastNumericValue: null,
+      lastBinaryValue: null,
+      gaugeRanges: {}
+    };
 
     function getDmmMeta(ioId){
       return dmmState.config.find(ch=>ch.io===ioId) || null;
@@ -354,6 +412,213 @@
       const pill = $('#dmm-mode-pill');
       if(badge) badge.textContent = meta?.label || meta?.io || '—';
       if(pill) pill.textContent = meta?.mode || '—';
+    }
+    const gaugeGeom = { centerX: 100, centerY: 120, radius: 80, startAngle: -120, endAngle: 120 };
+    function parseNumeric(value){
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+    function formatDecimal(value, maxDecimals=4){
+      if(!Number.isFinite(value)) return '—';
+      let txt = value.toFixed(maxDecimals);
+      txt = txt.replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1');
+      return txt;
+    }
+    function gaugePolar(angleDeg, radius){
+      const rad = angleDeg * Math.PI / 180;
+      return {
+        x: gaugeGeom.centerX + Math.cos(rad) * radius,
+        y: gaugeGeom.centerY + Math.sin(rad) * radius,
+      };
+    }
+    function niceCeil(value){
+      if(!Number.isFinite(value) || value === 0){ return 1; }
+      const magnitude = Math.abs(value);
+      const exponent = Math.floor(Math.log10(magnitude));
+      const power = Math.pow(10, exponent);
+      const scaled = magnitude / power;
+      let nice;
+      if(scaled <= 1){ nice = 1; }
+      else if(scaled <= 2){ nice = 2; }
+      else if(scaled <= 5){ nice = 5; }
+      else { nice = 10; }
+      return nice * power;
+    }
+    function updateDmmMode(){
+      document.querySelectorAll('#card-dmm [data-mode]').forEach(btn=>{
+        btn.classList.toggle('active', btn.dataset.mode === dmmMode);
+      });
+      document.querySelectorAll('#card-dmm .dmm-view').forEach(view=>{
+        view.classList.toggle('active', view.dataset.view === dmmMode);
+      });
+    }
+    function determineBinaryBitCount(value){
+      if(!Number.isFinite(value)) return 8;
+      const abs = Math.abs(value);
+      if(abs < 16) return 8;
+      if(abs < 256) return 8;
+      if(abs < 4096) return 12;
+      if(abs < 65536) return 16;
+      if(abs < 16777216) return 24;
+      return 32;
+    }
+    function updateDmmBinary(value){
+      const grid = $('#dmm-binary');
+      const meta = $('#dmm-binary-meta');
+      const rawEl = $('#dmm-binary-value');
+      if(!grid || !meta || !rawEl) return;
+      grid.innerHTML = '';
+      if(!Number.isFinite(value)){
+        grid.innerHTML = '<div class="binary-empty">Aucune donnée</div>';
+        rawEl.textContent = '—';
+        meta.textContent = 'Valeur non disponible';
+        return;
+      }
+      const rounded = Math.round(value);
+      rawEl.textContent = formatDecimal(value, 6);
+      const absValue = Math.abs(rounded);
+      const bits = determineBinaryBitCount(absValue);
+      const binary = absValue.toString(2).padStart(bits, '0');
+      for(let i=0; i<bits; i++){
+        const bitIndex = bits - 1 - i;
+        const bit = binary[bitIndex];
+        const cell = document.createElement('div');
+        cell.className = 'binary-cell';
+        const bitEl = document.createElement('div');
+        bitEl.className = 'binary-bit' + (bit === '1' ? ' on' : '');
+        bitEl.textContent = bit;
+        const label = document.createElement('div');
+        label.className = 'binary-bit-label';
+        label.textContent = '2^' + bitIndex;
+        cell.appendChild(bitEl);
+        cell.appendChild(label);
+        grid.appendChild(cell);
+      }
+      meta.textContent = `Bits : ${bits} • Arrondi : ${rounded}`;
+    }
+    function buildAutoGaugeRange(value){
+      const base = Number.isFinite(value) ? value : 0;
+      const magnitude = Math.max(Math.abs(base), 1);
+      const max = niceCeil(magnitude);
+      if(base >= 0){
+        return {min: 0, max, explicit: false};
+      }
+      return {min: -max, max, explicit: false};
+    }
+    function getGaugeRange(ioId, meta, snapshot, numericValue){
+      const candidatesMin = [meta?.min, meta?.minValue, meta?.minimum, meta?.rangeMin, meta?.range?.min, meta?.lower, meta?.low];
+      const candidatesMax = [meta?.max, meta?.maxValue, meta?.maximum, meta?.rangeMax, meta?.range?.max, meta?.upper, meta?.high];
+      const explicitMin = candidatesMin.map(parseNumeric).find(v=>v!==null);
+      const explicitMax = candidatesMax.map(parseNumeric).find(v=>v!==null);
+      if(explicitMin != null && explicitMax != null && explicitMin < explicitMax){
+        const range = {min: explicitMin, max: explicitMax, explicit: true};
+        dmmState.gaugeRanges[ioId] = range;
+        return range;
+      }
+      const previous = dmmState.gaugeRanges[ioId];
+      const baseRaw = parseNumeric(snapshot?.raw);
+      const baseValue = Number.isFinite(numericValue) ? numericValue : (Number.isFinite(baseRaw) ? baseRaw : null);
+      if(previous && previous.explicit){
+        return previous;
+      }
+      if(previous && !Number.isFinite(baseValue)){
+        return previous;
+      }
+      let range = previous;
+      if(!range){
+        range = buildAutoGaugeRange(baseValue);
+      }else if(Number.isFinite(baseValue) && (baseValue < range.min || baseValue > range.max)){
+        range = buildAutoGaugeRange(baseValue);
+      }
+      if(!range){
+        range = {min: -1, max: 1, explicit: false};
+      }
+      if(range.max <= range.min){
+        range = {min: range.min - 1, max: range.max + 1, explicit: range.explicit || false};
+      }
+      dmmState.gaugeRanges[ioId] = range;
+      return range;
+    }
+    function updateGaugeTicks(range){
+      const ticksGroup = document.getElementById('dmm-gauge-ticks');
+      if(!ticksGroup) return;
+      const arc = document.getElementById('dmm-gauge-arc');
+      const largeArc = (gaugeGeom.endAngle - gaugeGeom.startAngle) > 180 ? 1 : 0;
+      if(arc){
+        const start = gaugePolar(gaugeGeom.startAngle, gaugeGeom.radius);
+        const end = gaugePolar(gaugeGeom.endAngle, gaugeGeom.radius);
+        arc.setAttribute('d', `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${gaugeGeom.radius} ${gaugeGeom.radius} 0 ${largeArc} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`);
+      }
+      ticksGroup.innerHTML = '';
+      const majorCount = 5;
+      const minorPerSegment = 4;
+      const span = range.max - range.min;
+      const labelDecimals = (()=>{
+        if(span === 0) return 0;
+        const step = span / (majorCount - 1);
+        let decimals = 0, scaled = step;
+        while(decimals < 3 && scaled > 0 && scaled < 1){ decimals += 1; scaled *= 10; }
+        return decimals;
+      })();
+      const formatLabel = (value)=>{
+        if(!Number.isFinite(value)) return '0';
+        let txt = value.toFixed(labelDecimals);
+        txt = txt.replace(/\.0+$/,'').replace(/(\.\d*?)0+$/,'$1');
+        return txt;
+      };
+      const createLine = (angle, length, className)=>{
+        const outer = gaugePolar(angle, gaugeGeom.radius);
+        const inner = gaugePolar(angle, gaugeGeom.radius - length);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', inner.x.toFixed(2));
+        line.setAttribute('y1', inner.y.toFixed(2));
+        line.setAttribute('x2', outer.x.toFixed(2));
+        line.setAttribute('y2', outer.y.toFixed(2));
+        line.setAttribute('class', className);
+        ticksGroup.appendChild(line);
+      };
+      for(let i=0;i<majorCount;i++){
+        const ratio = i/(majorCount-1);
+        const angle = gaugeGeom.startAngle + ratio*(gaugeGeom.endAngle - gaugeGeom.startAngle);
+        createLine(angle, 14, 'gauge-tick');
+        const labelPos = gaugePolar(angle, gaugeGeom.radius - 28);
+        const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+        text.setAttribute('x', labelPos.x.toFixed(2));
+        text.setAttribute('y', (labelPos.y - 6).toFixed(2));
+        text.setAttribute('text-anchor','middle');
+        text.setAttribute('class','gauge-label');
+        text.textContent = formatLabel(range.min + ratio * span);
+        ticksGroup.appendChild(text);
+        if(i < majorCount-1){
+          for(let m=1;m<=minorPerSegment;m++){
+            const minorRatio = (i + m/(minorPerSegment+1)) / (majorCount-1);
+            const minorAngle = gaugeGeom.startAngle + minorRatio*(gaugeGeom.endAngle - gaugeGeom.startAngle);
+            createLine(minorAngle, 8, 'gauge-tick minor');
+          }
+        }
+      }
+    }
+    function updateDmmGauge(value, formatted, unit, meta, snapshot, ioId){
+      const reading = document.getElementById('dmm-gauge-reading');
+      const unitEl = document.getElementById('dmm-gauge-unit');
+      if(reading) reading.textContent = formatted;
+      if(unitEl) unitEl.textContent = unit || '';
+      const range = getGaugeRange(ioId, meta, snapshot, value);
+      updateGaugeTicks(range);
+      const needle = document.getElementById('dmm-gauge-needle');
+      if(!needle) return;
+      const span = range.max - range.min;
+      const effectiveSpan = span === 0 ? 1 : span;
+      const fallback = range.min + effectiveSpan / 2;
+      const clamped = Number.isFinite(value) ? Math.min(Math.max(value, range.min), range.max) : fallback;
+      const ratio = (clamped - range.min) / effectiveSpan;
+      const angle = gaugeGeom.startAngle + ratio*(gaugeGeom.endAngle - gaugeGeom.startAngle);
+      const tip = gaugePolar(angle, gaugeGeom.radius - 18);
+      needle.setAttribute('x1', gaugeGeom.centerX.toFixed(2));
+      needle.setAttribute('y1', gaugeGeom.centerY.toFixed(2));
+      needle.setAttribute('x2', tip.x.toFixed(2));
+      needle.setAttribute('y2', tip.y.toFixed(2));
+      needle.setAttribute('opacity', Number.isFinite(value) ? '1' : '0.25');
     }
     function buildFallbackMeta(snapshot){
       return snapshot.map((ch, idx)=>({
@@ -394,6 +659,7 @@
       updateDmmHeader(currentMeta);
     }
     function renderDmm(){
+      updateDmmMode();
       const sel = $('#dmm-select');
       if(!sel) return;
       const ioId = sel.value || dmmState.config[0]?.io || dmmState.snapshot[0]?.id || '';
@@ -409,31 +675,34 @@
       if(meta) updateDmmHeader(meta);
       const unit = (snapshot?.unit ?? meta?.unit ?? '').toString();
       let formatted = '—.—';
+      let numericValue = null;
       if(snapshot && snapshot.value !== undefined && snapshot.value !== null){
         const valueNumber = Number(snapshot.value);
         const decimals = typeof meta?.decimals === 'number' ? meta.decimals : null;
         if(Number.isFinite(valueNumber)){
+          numericValue = valueNumber;
           formatted = decimals !== null ? valueNumber.toFixed(decimals) : valueNumber.toString();
         }else{
           formatted = String(snapshot.value);
         }
       }
-      if(dmmHold && dmmState.holdValue !== null){
-        $('#dmm-value').textContent = dmmState.holdValue;
-        $('#dmm-unit-inline').textContent = dmmState.holdUnit ?? unit;
-      }else{
-        $('#dmm-value').textContent = formatted;
-        $('#dmm-unit-inline').textContent = unit;
-        if(dmmHold){
-          dmmState.holdValue = formatted;
-          dmmState.holdUnit = unit;
-        }
-      }
+      dmmState.lastNumericValue = Number.isFinite(numericValue) ? numericValue : null;
+      const rawNumber = parseNumeric(snapshot?.raw);
+      const binaryValue = Number.isFinite(rawNumber) ? rawNumber : dmmState.lastNumericValue;
+      dmmState.lastBinaryValue = Number.isFinite(binaryValue) ? binaryValue : null;
+      const displayFormatted = dmmHold && dmmState.holdValue !== null ? dmmState.holdValue : formatted;
+      const displayUnit = dmmHold && dmmState.holdUnit !== null ? dmmState.holdUnit : unit;
+      $('#dmm-value').textContent = displayFormatted;
+      $('#dmm-unit-inline').textContent = displayUnit;
+      const effectiveNumeric = dmmHold && dmmState.holdNumeric !== null ? dmmState.holdNumeric : dmmState.lastNumericValue;
+      const effectiveBinary = dmmHold && dmmState.holdBinary !== null ? dmmState.holdBinary : dmmState.lastBinaryValue;
       const metaParts = [];
       metaParts.push('Entrée : ' + (meta?.io || snapshot?.id || '—'));
       metaParts.push('Mode : ' + (meta?.mode || '—'));
       metaParts.push('Décimales : ' + (typeof meta?.decimals === 'number' ? meta.decimals : '—'));
       $('#dmm-meta').textContent = metaParts.join(' • ');
+      updateDmmBinary(effectiveBinary);
+      updateDmmGauge(effectiveNumeric, displayFormatted, displayUnit, meta, snapshot, ioId);
     }
     async function loadDmmConfig(){
       try{
@@ -480,6 +749,8 @@
         if(!dmmHold){
           dmmState.holdValue = null;
           dmmState.holdUnit = null;
+          dmmState.holdNumeric = null;
+          dmmState.holdBinary = null;
         }
         renderDmm();
       }catch(e){
@@ -491,12 +762,16 @@
       if(dmmHold){
         dmmState.holdValue = $('#dmm-value').textContent;
         dmmState.holdUnit = $('#dmm-unit-inline').textContent;
+        dmmState.holdNumeric = dmmState.lastNumericValue;
+        dmmState.holdBinary = dmmState.lastBinaryValue;
       }else{
         dmmState.holdValue = null;
         dmmState.holdUnit = null;
-        renderDmm();
+        dmmState.holdNumeric = null;
+        dmmState.holdBinary = null;
       }
       $('#dmm-hold').textContent = dmmHold?'Hold (ON)':'Hold';
+      renderDmm();
     });
     $('#dmm-select').addEventListener('change',(e)=>{
       const meta = getDmmMeta(e.target.value) || dmmState.config[0] || null;
@@ -504,13 +779,17 @@
       if(dmmHold){
         dmmState.holdValue = null;
         dmmState.holdUnit = null;
+        dmmState.holdNumeric = null;
+        dmmState.holdBinary = null;
       }
       renderDmm();
     });
     document.querySelectorAll('#card-dmm [data-mode]').forEach(b=>b.addEventListener('click',()=>{
       dmmMode = b.dataset.mode;
-      // Ici on conserve l’affichage numérique; les autres modes sont dans la page DMM complète.
+      updateDmmMode();
+      renderDmm();
     }));
+    updateDmmMode();
 
     /* --------- FUNCGEN --------- */
     async function loadIOForFunc(){
