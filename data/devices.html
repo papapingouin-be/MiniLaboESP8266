@@ -413,7 +413,7 @@
       if(badge) badge.textContent = meta?.label || meta?.io || '—';
       if(pill) pill.textContent = meta?.mode || '—';
     }
-    const gaugeGeom = { centerX: 100, centerY: 120, radius: 80, startAngle: -120, endAngle: 120 };
+    const gaugeGeom = { centerX: 100, centerY: 120, radius: 80, startAngle: -210, endAngle: 30 };
     function parseNumeric(value){
       const n = Number(value);
       return Number.isFinite(n) ? n : null;
@@ -581,11 +581,12 @@
         const ratio = i/(majorCount-1);
         const angle = gaugeGeom.startAngle + ratio*(gaugeGeom.endAngle - gaugeGeom.startAngle);
         createLine(angle, 14, 'gauge-tick');
-        const labelPos = gaugePolar(angle, gaugeGeom.radius - 28);
+        const labelPos = gaugePolar(angle, gaugeGeom.radius + 18);
         const text = document.createElementNS('http://www.w3.org/2000/svg','text');
         text.setAttribute('x', labelPos.x.toFixed(2));
-        text.setAttribute('y', (labelPos.y - 6).toFixed(2));
+        text.setAttribute('y', labelPos.y.toFixed(2));
         text.setAttribute('text-anchor','middle');
+        text.setAttribute('dominant-baseline','middle');
         text.setAttribute('class','gauge-label');
         text.textContent = formatLabel(range.min + ratio * span);
         ticksGroup.appendChild(text);
