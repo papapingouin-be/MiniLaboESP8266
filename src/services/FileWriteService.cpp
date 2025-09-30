@@ -2,10 +2,12 @@
 //
 // See header for description. This implementation performs a
 // write-through to a temporary file and renames it to the target
-// filename.  Only one task is processed per call to loop() to avoid
-// blocking the main loop for too long.  Note: we do not log
-// extensively here to keep the service generic.  The caller can
-// instrument the queue via WebApi.
+// filename. Only one task is processed per call to loop() to avoid
+// blocking the main loop for too long. Tasks are stored in a small ring
+// buffer instead of relying on std::queue so that we avoid dynamic
+// allocations, which are risky on memory constrained devices. Note: we
+// do not log extensively here to keep the service generic. The caller
+// can instrument the queue via WebApi.
 
 #include "FileWriteService.h"
 #include <Arduino.h>
@@ -18,18 +20,21 @@ void FileWriteService::begin() {
 
 void FileWriteService::loop() {
   // If currently processing a task do nothing. In this simple
-  // implementation we process one task per call and mark ourselves
-  // busy until the task completes. A more advanced version could
-  // implement state machine and yield() periodically.
+  // implementation we process one task per call and mark ourselves busy
+  // until the task completes. A more advanced version could implement a
+  // state machine and yield() periodically.
   if (m_busy) {
     return;
   }
-  if (m_queue.empty()) {
+  if (m_count == 0) {
     return;
   }
   // Pop the next task
-  Task task = m_queue.front();
-  m_queue.pop();
+  Task task = m_tasks[m_head];
+  m_head = (m_head + 1) % kMaxQueueLength;
+  if (m_count > 0) {
+    m_count--;
+  }
   m_busy = true;
   Serial.println(String(F("[FS] Begin write: ")) + task.path + F(" (") +
                  String(task.contents.length()) + F(" bytes)"));
@@ -39,8 +44,7 @@ void FileWriteService::loop() {
   // request; the caller should handle logging elsewhere.
   File f = LittleFS.open(tmpName, "w");
   if (!f) {
-    Serial.println(String(F("[FS] Failed to open temp file for ")) +
-                   task.path);
+    Serial.println(String(F("[FS] Failed to open temp file for ")) + task.path);
     // Cannot open file; mark not busy and return
     m_busy = false;
     return;
@@ -71,14 +75,19 @@ void FileWriteService::loop() {
 }
 
 void FileWriteService::enqueue(const String &path, const String &contents) {
-  Task t;
-  t.path = path;
-  t.contents = contents;
-  m_queue.push(t);
-  Serial.println(String(F("[FS] Enqueued write for ")) + path + F(" (queue=") +
-                 String(m_queue.size()) + F(")"));
+  if (m_count >= kMaxQueueLength) {
+    Serial.println(String(F("[FS] Queue full, dropping write for ")) + path);
+    return;
+  }
+  m_tasks[m_tail].path = path;
+  m_tasks[m_tail].contents = contents;
+  m_tail = (m_tail + 1) % kMaxQueueLength;
+  m_count++;
+  Serial.println(String(F("[FS] Enqueued write for ")) + path + F(" (queue=")) +
+                 String(m_count + (m_busy ? 1 : 0)) + F(")"));
 }
 
 size_t FileWriteService::pending() const {
-  return m_queue.size() + (m_busy ? 1 : 0);
+  return m_count + (m_busy ? 1 : 0);
 }
+
