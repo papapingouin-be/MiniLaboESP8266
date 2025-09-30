@@ -236,8 +236,6 @@
       position:relative;
       display:flex;
     }
-    .scope-meta{display:flex; gap:10px; align-items:center}
-    .scope-led{width:8px;height:8px;border-radius:50%; background:#67e8f9; box-shadow:0 0 10px rgba(76,195,255,.6)}
     .scope-body{display:flex; width:100%; min-height:230px}
     .scope-screen{flex:1 1 auto; position:relative; min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:14px; gap:12px}
     .scope-display{width:100%; max-width:520px}
@@ -255,8 +253,6 @@
     #scope-ref-popup{top:14px; left:18px}
     #scope-scale-popup{bottom:18px; left:18px}
     #scope-zero-popup{top:50%; left:18px; transform:translateY(-50%)}
-    .scope-status{display:flex; justify-content:space-between; align-items:center; gap:12px; font-size:12px; color:#b7c3d1; background:linear-gradient(180deg,#09111d 0%, #060b14 100%); border:1px solid #162235; border-radius:10px; padding:10px 14px; width:100%; margin-top:auto; align-self:stretch}
-    .scope-status-right{display:flex; align-items:center; gap:10px}
     .scope-controls{
       flex:0 0 200px;
       border-left:1px solid #162235;
@@ -496,14 +492,6 @@
                   <div class="scope-popup info-label" id="scope-ref-popup" data-tooltip="0 V (réf. lecture)" tabindex="0">Réf 0 V <span class="info-icon" aria-hidden="true">i</span></div>
                   <div class="scope-popup info-label" id="scope-zero-popup" data-tooltip="Ligne 0 V, utilisez l’offset pour centrer le signal." tabindex="0">0 V <span class="info-icon" aria-hidden="true">i</span></div>
                   <div class="scope-popup info-label" id="scope-scale-popup" data-tooltip="—" tabindex="0">Échelle <span class="info-icon" aria-hidden="true">i</span></div>
-                </div>
-                <div class="scope-status">
-                  <div class="scope-meta">
-                    <span class="scope-led"></span>
-                    <span>Live</span>
-                    <span class="info-label" id="scope-trace-info" data-tooltip="—" tabindex="0">Trace <span class="info-icon" aria-hidden="true">i</span></span>
-                  </div>
-                  <div class="scope-status-right info-label" id="scope-meta" data-tooltip="—" tabindex="0">Acquisition <span class="info-icon" aria-hidden="true">i</span></div>
                 </div>
               </div>
               <div class="scope-controls">
@@ -1182,8 +1170,7 @@
         }
       }
       if(scopeRefPopup){
-        scopeRefPopup.setAttribute('data-tooltip', '0 V (réf. lecture)
-Ligne rouge pointillée = niveau de référence.');
+        scopeRefPopup.setAttribute('data-tooltip', '0 V (réf. lecture)\nLigne rouge pointillée = niveau de référence.');
       }
     }
 
