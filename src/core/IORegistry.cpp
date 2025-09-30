@@ -53,13 +53,23 @@ void IORegistry::begin(ConfigStore *config) {
   // coefficients "k" and "b". If the file is missing or empty no
   // channels will be configured.
   JsonDocument &doc = m_config->getConfig("io");
-  if (!doc.is<JsonArray>()) {
+  JsonArray arr;
+  if (doc.is<JsonArray>()) {
+    arr = doc.as<JsonArray>();
+  } else if (doc.is<JsonObject>()) {
+    JsonObject obj = doc.as<JsonObject>();
+    if (obj.containsKey("channels")) {
+      arr = obj["channels"].as<JsonArray>();
+    }
+  }
+  if (arr.isNull()) {
     if (m_logger)
       m_logger->warning("io.json missing or invalid; no IO channels configured");
+    Serial.println(F("[WARN] io.json missing/invalid, no IO channels loaded"));
     return;
   }
 
-  JsonArray arr = doc.as<JsonArray>();
+  bool hasAnalogInput = false;
   for (JsonVariant v : arr) {
     if (m_channelCount >= kMaxChannels)
       break;
@@ -68,22 +78,36 @@ void IORegistry::begin(ConfigStore *config) {
     JsonObject obj = v.as<JsonObject>();
     Channel &ch = m_channels[m_channelCount++];
     ch.id = obj["id"] | String("ch") + String(m_channelCount);
+    ch.id.trim();
     ch.type = obj["type"] | "a0";
+    ch.type.toLowerCase();
     ch.index = obj["index"] | 0;
     ch.k = obj["k"] | 1.0;
     ch.b = obj["b"] | 0.0;
-    const char *unit = obj["unit"] | "";
+    const char *unit = obj["unit"] | "V";
     ch.unit = unit;
+    if (ch.type == "a0") {
+      hasAnalogInput = true;
+    }
     if (m_logger) {
       String msg = String("IO channel ") + ch.id + " type=" + ch.type +
                    " index=" + String(ch.index);
       m_logger->info(msg);
     }
+    Serial.println(String(F("[IO] Channel loaded: id=")) + ch.id +
+                   F(" type=") + ch.type + F(" index=") + String(ch.index));
   }
 
   if (m_logger) {
     m_logger->info(String("Configured ") + String(m_channelCount) +
                    String(" IO channel(s)"));
+  }
+  Serial.println(String(F("[IO] Total channels configured: ")) +
+                 String(m_channelCount));
+
+  if (hasAnalogInput) {
+    pinMode(A0, INPUT);
+    Serial.println(F("[IO] Configured A0 as analog input"));
   }
 
   // Determine if ADS1115 is required

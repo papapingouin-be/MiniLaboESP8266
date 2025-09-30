@@ -61,8 +61,9 @@ void setup() {
   // stabilise before printing any messages.
   Serial.begin(DEBUG_SERIAL_BAUD);
   delay(100);
-  Serial.setDebugOutput(true);
+  Serial.setDebugOutput(false);
   Serial.println();
+  Serial.println(F("[INFO] SDK debug output disabled"));
   Serial.println(F("=== MiniLaboESP boot ==="));
   Serial.print(F("[BOOT] Reset reason: "));
   Serial.println(ESP.getResetReason());
