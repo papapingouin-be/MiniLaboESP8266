@@ -1018,6 +1018,10 @@
     let scopeChannelColors = {};
     let scopeLatestSamples = [];
     let scopeChannelsData = {};
+    let scopeLastScopeData = null;
+    let scopeUsingFallback = false;
+    let scopeNextScopeApiRetry = 0;
+    let scopeFallbackCache = null;
 
     function formatVolt(value, suffix=''){
       if(value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -1317,49 +1321,135 @@
       updateVoltDisplay(getCurrentVoltPerDiv());
     }
 
-    async function loadScope(){
+    async function loadScopeFallback(){
       try{
-        const r = await j('/api/scope');
-        if(!r.ok) throw new Error('scope');
-        const data = await r.json();
-        scopeChannelsData = data.channels || {};
-        const chNames = Object.keys(scopeChannelsData);
-        if(chNames.length){
-          setScopeChannelList(chNames);
-          if(!scopeSelectedChannel){
-            scopeSelectedChannel = chNames[0];
-          }
-          $('#scope-chan').textContent = scopeSelectedChannel || '—';
-          scopeLatestSamples = scopeChannelsData[scopeSelectedChannel] || [];
-          if(scopeTraceColor && scopeSelectedChannel){
-            scopeTraceColor.value = scopeChannelColors[scopeSelectedChannel];
-          }
+        if(scopeFallbackCache){
+          return Object.assign({}, scopeFallbackCache, {
+            channels: Object.fromEntries(Object.entries(scopeFallbackCache.channels).map(([name, samples])=>[name, Array.from(samples || [])]))
+          });
+        }
+        const r = await fetch('scope.json', {cache: 'no-cache'});
+        if(!r.ok) return null;
+        const cfg = await r.json();
+        let channels = {};
+        if(cfg.channels && typeof cfg.channels === 'object'){
+          Object.entries(cfg.channels).forEach(([name, samples])=>{
+            channels[name] = Array.isArray(samples) ? samples : new Array(200).fill(0);
+          });
+        }else{
+          const channelName = cfg.channel || 'CH1';
+          const samples = Array.isArray(cfg.samples) ? cfg.samples : new Array(200).fill(0);
+          channels[channelName] = samples;
+        }
+        const result = {
+          channels,
+          timebase_ms_per_div: typeof cfg.timebase_ms_per_div === 'number' ? cfg.timebase_ms_per_div : (typeof cfg.timebase === 'number' ? cfg.timebase : null),
+          volts_per_div: typeof cfg.volts_per_div === 'number' ? cfg.volts_per_div : (typeof cfg.vdiv === 'number' ? cfg.vdiv : null)
+        };
+        scopeFallbackCache = {
+          channels: Object.fromEntries(Object.entries(channels).map(([name, samples])=>[name, Array.from(samples || [])])),
+          timebase_ms_per_div: result.timebase_ms_per_div,
+          volts_per_div: result.volts_per_div
+        };
+        return result;
+      }catch(err){
+        return null;
+      }
+    }
+
+    function applyScopeData(data){
+      const rawChannels = data.channels && typeof data.channels === 'object' ? data.channels : {};
+      const normalizedChannels = {};
+      Object.entries(rawChannels).forEach(([name, samples])=>{
+        if(Array.isArray(samples)){
+          normalizedChannels[name] = samples.slice();
+        }else if(samples && typeof samples[Symbol.iterator] === 'function'){
+          normalizedChannels[name] = Array.from(samples);
+        }else{
+          normalizedChannels[name] = [];
+        }
+      });
+      scopeLastScopeData = Object.assign({}, data, {channels: normalizedChannels});
+      scopeChannelsData = scopeLastScopeData.channels;
+      const chNames = Object.keys(scopeChannelsData);
+      if(chNames.length){
+        setScopeChannelList(chNames);
+        if(!scopeSelectedChannel){
+          scopeSelectedChannel = chNames[0];
+        }
+        $('#scope-chan').textContent = scopeSelectedChannel || '—';
+        scopeLatestSamples = scopeChannelsData[scopeSelectedChannel] || [];
+        if(scopeTraceColor && scopeSelectedChannel){
+          scopeTraceColor.value = scopeChannelColors[scopeSelectedChannel];
+        }
+      }else{
+        scopeSelectedChannel = null;
+        scopeLatestSamples = [];
+        $('#scope-chan').textContent = '—';
+      }
+
+      const timebase = typeof data.timebase_ms_per_div === 'number' ? data.timebase_ms_per_div : null;
+      if(scopeTimebaseSelect && timebase !== null){
+        const idx = findClosestIndex(scopeTimebaseValues, timebase);
+        scopeTimebaseSelect.value = String(scopeTimebaseValues[idx]);
+      }
+      const currentTimebase = getCurrentTimebase();
+      updateTimebaseDisplay(currentTimebase);
+      if(scopeTimebaseStatus){
+        scopeTimebaseStatus.textContent = scopeTimebaseStatus.textContent === 'Synchronisé' ? scopeTimebaseStatus.textContent : '';
+      }
+
+      if(scopeVoltSelect && typeof data.volts_per_div === 'number'){
+        const idx = findClosestIndex(scopeVoltsPerDivValues, data.volts_per_div);
+        scopeVoltSelect.value = String(scopeVoltsPerDivValues[idx]);
+        updateVoltDisplay(getCurrentVoltPerDiv());
+      }
+
+      renderScope();
+    }
+
+    async function loadScope(){
+      const now = Date.now();
+      const shouldTryApi = !scopeUsingFallback || now >= scopeNextScopeApiRetry;
+      let data = null;
+
+      if(shouldTryApi){
+        try{
+          const r = await j('/api/scope');
+          if(!r.ok) throw new Error('scope');
+          data = await r.json();
+          scopeUsingFallback = false;
+          scopeFallbackCache = null;
+        }catch(e){
+          scopeUsingFallback = true;
+          scopeNextScopeApiRetry = Date.now() + 5000;
+        }
+      }
+
+      if(!data){
+        if(scopeUsingFallback && scopeLastScopeData){
+          applyScopeData(scopeLastScopeData);
+          return;
+        }
+        const fallback = await loadScopeFallback();
+        if(fallback){
+          data = fallback;
+          scopeUsingFallback = true;
+          scopeNextScopeApiRetry = Date.now() + 5000;
         }else{
           scopeSelectedChannel = null;
           scopeLatestSamples = [];
+          scopeChannelsData = {};
+          scopeLastScopeData = null;
+          scopeUsingFallback = false;
           $('#scope-chan').textContent = '—';
+          updateScopeDetails(null, 0);
+          updateTimebaseDisplay(null);
+          return;
         }
-
-        const timebase = typeof data.timebase_ms_per_div === 'number' ? data.timebase_ms_per_div : null;
-        if(scopeTimebaseSelect && timebase !== null){
-          const idx = findClosestIndex(scopeTimebaseValues, timebase);
-          scopeTimebaseSelect.value = String(scopeTimebaseValues[idx]);
-        }
-        const currentTimebase = getCurrentTimebase();
-        updateTimebaseDisplay(currentTimebase);
-        if(scopeTimebaseStatus){
-          scopeTimebaseStatus.textContent = scopeTimebaseStatus.textContent === 'Synchronisé' ? scopeTimebaseStatus.textContent : '';
-        }
-
-        renderScope();
-      }catch(e){
-        scopeSelectedChannel = null;
-        scopeLatestSamples = [];
-        scopeChannelsData = {};
-        $('#scope-chan').textContent = '—';
-        updateScopeDetails(null, 0);
-        updateTimebaseDisplay(null);
       }
+
+      applyScopeData(data);
     }
     /* --------- MATH EDITOR --------- */
     async function loadMath(){
