@@ -43,7 +43,7 @@ private:
   // Fixed list of areas. Additional areas can be added here but
   // increasing this count also increases memory usage because each
   // entry reserves 2 KiB of static space.
-  static const size_t kMaxAreas = 7;
+  static const size_t kMaxAreas = 8;
   Entry m_entries[kMaxAreas];
   size_t m_count;
 };

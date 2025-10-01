@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Configuration des sorties – MiniLabo</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      padding-bottom: 3rem;
+    }
+
+    .intro {
+      background: #f1f4fb;
+      border: 1px solid #d7deea;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+    }
+
+    .intro p {
+      margin: 0.35rem 0;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    table#outputsTable {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    table#outputsTable th,
+    table#outputsTable td {
+      border: 1px solid #d7deea;
+      padding: 0.55rem 0.7rem;
+      vertical-align: middle;
+    }
+
+    table#outputsTable tbody tr.selected {
+      outline: 2px solid #0059ff;
+      outline-offset: -3px;
+      background: #eef3ff;
+    }
+
+    table#outputsTable tbody tr:hover {
+      background: #f7faff;
+    }
+
+    table#outputsTable td[data-field="summary"] {
+      font-size: 0.92rem;
+      color: #2e3f60;
+    }
+
+    table#outputsTable td input[type="text"] {
+      width: 100%;
+      border: 1px solid #c7d2e5;
+      border-radius: 6px;
+      padding: 0.3rem 0.4rem;
+    }
+
+    table#outputsTable td select {
+      width: 100%;
+      border: 1px solid #c7d2e5;
+      border-radius: 6px;
+      padding: 0.35rem 0.4rem;
+      background: #f9fbff;
+    }
+
+    .panel {
+      background: #f7f9fc;
+      border: 1px solid #d7deea;
+      border-radius: 12px;
+      padding: 1.2rem 1.4rem;
+      display: grid;
+      gap: 1rem;
+    }
+
+    .panel h2 {
+      margin: 0;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .actions select,
+    .actions button {
+      border-radius: 999px;
+      border: 1px solid #b7c5ff;
+      background: #eef3ff;
+      color: #1f3d7a;
+      padding: 0.45rem 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .actions button.save {
+      background: #1f3d7a;
+      color: #fff;
+      border-color: #1f3d7a;
+    }
+
+    .actions button.danger {
+      border-color: #e09a9a;
+      background: #ffecec;
+      color: #a13333;
+    }
+
+    .status-bar {
+      font-size: 0.95rem;
+      color: #304160;
+    }
+
+    .status-bar.ok {
+      color: #1f7a4d;
+    }
+
+    .status-bar.error {
+      color: #a13333;
+    }
+
+    .detail-panel {
+      background: #fff;
+      border: 1px solid #dbe3f6;
+      border-radius: 12px;
+      padding: 1.1rem 1.25rem;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+      display: grid;
+      gap: 0.9rem;
+    }
+
+    .detail-panel h3 {
+      margin: 0;
+    }
+
+    .detail-panel .legend {
+      margin: 0;
+      color: #3a4b74;
+      font-size: 0.95rem;
+    }
+
+    .detail-panel .form-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .detail-panel label.field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.93rem;
+      color: #1f2f55;
+    }
+
+    .detail-panel label.field span {
+      font-weight: 600;
+    }
+
+    .detail-panel input,
+    .detail-panel select,
+    .detail-panel textarea {
+      border: 1px solid #c7d2e5;
+      border-radius: 8px;
+      padding: 0.45rem 0.55rem;
+      font-size: 0.95rem;
+      background: #f9fbff;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .detail-panel textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .detail-panel .diagram {
+      background: #0f172a;
+      color: #e7efff;
+      border-radius: 12px;
+      border: 1px solid #1f2f55;
+      padding: 0.75rem 1rem;
+      font-family: "Courier New", monospace;
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .detail-panel ul {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: #2e3f60;
+    }
+
+    .detail-panel ul li + li {
+      margin-top: 0.35rem;
+    }
+
+    .typology-grid {
+      display: grid;
+      gap: 1.1rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .typology-grid article {
+      background: #fff;
+      border: 1px solid #dbe3f6;
+      border-radius: 12px;
+      padding: 1rem 1.2rem;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    }
+
+    .typology-grid h3 {
+      margin-top: 0;
+    }
+
+    .tips article {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .tips pre {
+      margin: 0;
+    }
+
+    @media (max-width: 920px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Configuration des sorties analogiques</h1>
+  <div class="intro">
+    <p>Cette page rassemble les sorties disponibles sur le MiniLabo. Chaque module possède sa fiche de configuration afin de documenter la plage de fonctionnement, la connectique et les réglages utiles au générateur de fonctions.</p>
+    <p>Sélectionnez une ligne dans la table pour ouvrir sa fiche détaillée. Les paramètres sont sauvegardés dans <code>outputs.json</code> et serviront de référence pour les futurs scénarios.</p>
+  </div>
+
+  <section class="panel">
+    <h2>Panorama des modules disponibles</h2>
+    <div class="typology-grid">
+      <article>
+        <h3>Sortie PWM + filtre RC</h3>
+        <p>Génère une tension analogique lissée à partir d’une PWM entre 1&nbsp;kHz et 40&nbsp;kHz. Le filtre de base est constitué d’une résistance de 10&nbsp;kΩ et d’un condensateur de 10&nbsp;µF.</p>
+        <ul>
+          <li>Idéale pour piloter des servos analogiques, des références de consigne ou injecter un signal lent.</li>
+          <li>Choisissez la broche PWM, la fréquence et, si besoin, adaptez la constante de temps du filtre.</li>
+        </ul>
+      </article>
+      <article>
+        <h3>MCP4725 (DAC 12&nbsp;bits)</h3>
+        <p>Convertisseur numérique‑analogique I²C alimenté en 3,3&nbsp;V. Il fournit une tension proportionnelle de 0 à 3,3&nbsp;V.</p>
+        <ul>
+          <li>Précision 12&nbsp;bits, idéal pour des consignes lentes ou un offset précis.</li>
+          <li>Adresse I²C configurable (0x60 ou 0x61 suivant le cavalier A0).</li>
+        </ul>
+      </article>
+      <article>
+        <h3>Convertisseur PWM → 0–10&nbsp;V</h3>
+        <p>Module industriel acceptant une alimentation 12–30&nbsp;V et un signal PWM 1–3&nbsp;kHz. Il délivre 0–10&nbsp;V (±5&nbsp;%) pour piloter variateurs, drivers LED, etc.</p>
+        <ul>
+          <li>Sélection de la plage d’entrée via cavalier (5&nbsp;V ou 24&nbsp;V).</li>
+          <li>Ajustement fin par potentiomètre intégré pour caler 10&nbsp;V en pleine échelle.</li>
+        </ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="layout">
+    <section class="panel">
+      <h2>Table des sorties configurées</h2>
+      <p class="status-bar" id="status">Lecture des données…</p>
+      <div class="actions">
+        <select id="newOutputType"></select>
+        <button type="button" id="addOutput">Ajouter cette sortie</button>
+        <button type="button" id="refresh">Recharger</button>
+        <button type="button" class="save" id="save">Enregistrer</button>
+      </div>
+      <table id="outputsTable" aria-label="Configuration des sorties">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Résumé matériel</th>
+            <th>Plage de sortie</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <aside class="detail-panel" id="detailPanel">
+      <h3>Sélectionnez une sortie</h3>
+      <p class="legend">Cliquez sur une ligne de la table pour afficher la configuration détaillée.</p>
+    </aside>
+  </section>
+
+  <section class="panel tips">
+    <h2>Fiches pratiques</h2>
+    <article>
+      <h3>Filtre PWM → analogique (RC)</h3>
+      <div class="diagram">
+        <pre>        ESP8266 (ex: D2)
+              │
+              │  PWM (~1 kHz à 40 kHz)
+              │
+             ┌┴┐
+             │ │ R (10 kΩ typ.)
+             │ │
+             └┬┘
+              │───────────────&gt; Vout (tension analogique lissée)
+              │
+             ┌─┐
+             │ │ C (10 µF typ.)
+             │ │
+             └─┘
+              │
+             GND</pre>
+      </div>
+      <ul>
+        <li>Constante de temps de référence : τ = R × C ≈ 0,1&nbsp;s (à ajuster selon la dynamique souhaitée).</li>
+        <li>Pour des variations rapides, réduire C ou augmenter la fréquence PWM.</li>
+      </ul>
+    </article>
+    <article>
+      <h3>MCP4725</h3>
+      <ul>
+        <li>Adresse 0x60 par défaut, 0x61 si le cavalier A0 est placé.</li>
+        <li>Sortie 0–Vref. Avec Vref = 3,3&nbsp;V, un pas vaut ~0,8&nbsp;mV.</li>
+      </ul>
+    </article>
+    <article>
+      <h3>Module PWM → 0–10&nbsp;V</h3>
+      <ul>
+        <li>Alimentation : 12–30&nbsp;V (≥100&nbsp;mA). Mettre le cavalier selon le niveau PWM (5&nbsp;V ou 24&nbsp;V).</li>
+        <li>Fréquence d’entrée recommandée : 1–3&nbsp;kHz. Ajuster le potentiomètre pour caler 10&nbsp;V.</li>
+      </ul>
+    </article>
+  </section>
+
+  <script>
+  const DEFAULT_OUTPUT_PROFILES = [
+    {
+      type: 'pwm_rc',
+      label: 'PWM filtrée (RC)',
+      defaultId: 'AO0',
+      defaultUnit: 'V',
+      summary: 'PWM 1–40 kHz filtrée par RC (10 kΩ / 10 µF).',
+      pins: [
+        { value: 'D1', label: 'D1 (GPIO5)' },
+        { value: 'D2', label: 'D2 (GPIO4)' },
+        { value: 'D5', label: 'D5 (GPIO14)' },
+        { value: 'D6', label: 'D6 (GPIO12)' },
+        { value: 'D7', label: 'D7 (GPIO13)' },
+        { value: 'D8', label: 'D8 (GPIO15)' },
+      ],
+      pwmModes: [
+        { id: 'balanced', label: 'Équilibré (≈1 kHz)', frequency: 1000 },
+        { id: 'standard', label: 'Standard (≈5 kHz)', frequency: 5000 },
+        { id: 'fast', label: 'Rapide (≈20 kHz)', frequency: 20000 },
+      ],
+      configTemplate: {
+        pin: 'D2',
+        pwmMode: 'balanced',
+        frequency: 5000,
+        filter: { r_ohm: 10000, c_uF: 10 },
+        range: { min: 0, max: 3.3, unit: 'V' },
+        notes: 'Utiliser un filtre RC (10 kΩ / 10 µF) pour lisser la PWM.'
+      }
+    },
+    {
+      type: 'mcp4725',
+      label: 'MCP4725 (DAC 12 bits)',
+      defaultId: 'DAC0',
+      defaultUnit: 'V',
+      summary: 'DAC I²C 12 bits, sortie 0–3,3 V proportionnelle.',
+      addresses: ['0x60', '0x61'],
+      configTemplate: {
+        address: '0x60',
+        range: { min: 0, max: 3.3, unit: 'V' },
+        vref: 3.3,
+        notes: 'Le MCP4725 utilise l’alimentation comme référence.'
+      }
+    },
+    {
+      type: 'pwm_0_10v',
+      label: 'Convertisseur PWM → 0-10 V',
+      defaultId: 'AO10',
+      defaultUnit: 'V',
+      summary: 'Module 12-30 V convertissant 0-100 % PWM en 0-10 V (±5 %).',
+      pins: [
+        { value: 'D1', label: 'D1 (GPIO5)' },
+        { value: 'D2', label: 'D2 (GPIO4)' },
+        { value: 'D5', label: 'D5 (GPIO14)' },
+        { value: 'D6', label: 'D6 (GPIO12)' },
+        { value: 'D7', label: 'D7 (GPIO13)' },
+        { value: 'D8', label: 'D8 (GPIO15)' },
+      ],
+      pwmModes: [
+        { id: 'standard', label: 'Standard (≈2 kHz)', frequency: 2000 },
+        { id: 'fast', label: 'Rapide (≈3 kHz)', frequency: 3000 },
+      ],
+      supply: { min: 12, max: 30, unit: 'V', current_mA: 100 },
+      inputLevel: { min: 4.5, max: 24, unit: 'V' },
+      configTemplate: {
+        pin: 'D1',
+        pwmMode: 'standard',
+        frequency: 2000,
+        range: { min: 0, max: 10, unit: 'V' },
+        supply: { voltage: 24, unit: 'V' },
+        inputLevel: { min: 4.5, max: 24, unit: 'V' },
+        jumper: '5V',
+        notes: 'Alimenter entre 12 et 30 V. Régler le potentiomètre pour caler 10 V.'
+      }
+    }
+  ];
+
+  let hardwareProfiles = [];
+  let outputs = [];
+  let selectedIndex = -1;
+
+  const statusEl = document.getElementById('status');
+  const tableBody = document.querySelector('#outputsTable tbody');
+  const detailPanel = document.getElementById('detailPanel');
+  const newOutputType = document.getElementById('newOutputType');
+
+  function setStatus(message, tone = '') {
+    statusEl.textContent = message;
+    statusEl.className = 'status-bar ' + tone;
+  }
+
+  function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  function deepMerge(target, source) {
+    if (!source || typeof source !== 'object') return target;
+    Object.keys(source).forEach(key => {
+      const value = source[key];
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        if (!target[key] || typeof target[key] !== 'object') {
+          target[key] = Array.isArray(value) ? [] : {};
+        }
+        deepMerge(target[key], value);
+      } else {
+        target[key] = value;
+      }
+    });
+    return target;
+  }
+
+  function ensureHardwareProfiles() {
+    if (!hardwareProfiles.length) {
+      hardwareProfiles = DEFAULT_OUTPUT_PROFILES.map(def => deepClone(def));
+    }
+    const map = new Map();
+    hardwareProfiles.forEach(def => map.set(def.type, def));
+    return map;
+  }
+
+  function findProfile(type) {
+    const map = ensureHardwareProfiles();
+    return map.get(type) || null;
+  }
+
+  function createUniqueId(base) {
+    const clean = (base && base.trim().length) ? base.trim() : 'OUT';
+    let candidate = clean;
+    let counter = 1;
+    const existing = new Set(outputs.map(o => o.id));
+    while (existing.has(candidate)) {
+      candidate = `${clean}-${counter}`;
+      counter += 1;
+    }
+    return candidate;
+  }
+
+  function normaliseOutput(entry) {
+    const profile = findProfile(entry.type) || DEFAULT_OUTPUT_PROFILES[0];
+    const result = {
+      id: entry.id || profile.defaultId || createUniqueId('OUT'),
+      type: entry.type || profile.type,
+      config: deepClone(profile.configTemplate || {})
+    };
+    if (entry.config) {
+      deepMerge(result.config, entry.config);
+    }
+    if (!result.config.range) {
+      result.config.range = { min: 0, max: 1, unit: profile.defaultUnit || '' };
+    }
+    return result;
+  }
+
+  function loadHardwareCapabilities() {
+    return fetch('/api/io/hardware')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        const locals = [];
+        if (data && Array.isArray(data.localOutputs)) {
+          data.localOutputs.forEach(entry => {
+            const profile = {
+              type: entry.type,
+              label: entry.label || entry.type,
+              defaultId: entry.defaultId || entry.type,
+              defaultUnit: entry.defaultUnit || '',
+              summary: entry.summary || '',
+              pins: Array.isArray(entry.pins) ? entry.pins.map(pin => {
+                if (typeof pin === 'string') return { value: pin, label: pin };
+                return {
+                  value: pin.value || pin.label || pin.gpio || '',
+                  label: pin.label || pin.value || ''
+                };
+              }) : [],
+              pwmModes: Array.isArray(entry.pwmModes) ? entry.pwmModes.map(mode => ({
+                id: mode.id || mode.value || mode.label || '',
+                label: mode.label || mode.id || '',
+                frequency: mode.frequency || mode.freq || null
+              })) : [],
+              addresses: Array.isArray(entry.addresses) ? entry.addresses.slice() : undefined,
+              supply: entry.supply || undefined,
+              inputLevel: entry.inputLevel || undefined,
+              configTemplate: deepClone(entry.configTemplate || entry.template || {})
+            };
+            if (!profile.configTemplate.range && entry.range) {
+              profile.configTemplate.range = deepClone(entry.range);
+            }
+            locals.push(profile);
+          });
+        }
+        if (locals.length) {
+          hardwareProfiles = locals;
+        } else {
+          hardwareProfiles = DEFAULT_OUTPUT_PROFILES.map(def => deepClone(def));
+        }
+        populateNewOutputSelect();
+      })
+      .catch(() => {
+        hardwareProfiles = DEFAULT_OUTPUT_PROFILES.map(def => deepClone(def));
+        populateNewOutputSelect();
+      });
+  }
+
+  function populateNewOutputSelect() {
+    const profiles = Array.from(ensureHardwareProfiles().values());
+    newOutputType.innerHTML = '';
+    profiles.forEach(profile => {
+      const option = document.createElement('option');
+      option.value = profile.type;
+      option.textContent = `${profile.label}`;
+      newOutputType.appendChild(option);
+    });
+    if (profiles.length) {
+      newOutputType.value = profiles[0].type;
+    }
+  }
+
+  function summariseOutput(output) {
+    const profile = findProfile(output.type);
+    if (!profile) return 'Type inconnu';
+    const config = output.config || {};
+    if (output.type === 'pwm_rc') {
+      const modes = profile.pwmModes || [];
+      const mode = modes.find(m => m.id === config.pwmMode);
+      const modeLabel = mode ? mode.label : (config.pwmMode || 'mode ?');
+      const pin = config.pin || 'broche ?';
+      const filter = config.filter || {};
+      const r = filter.r_ohm ? `${filter.r_ohm} Ω` : 'R ?';
+      const c = filter.c_uF ? `${filter.c_uF} µF` : 'C ?';
+      return `${pin} · ${modeLabel} · RC ${r}/${c}`;
+    }
+    if (output.type === 'mcp4725') {
+      const addr = config.address || '0x60';
+      return `I²C ${addr} · Vref ${config.vref || 3.3} V`;
+    }
+    if (output.type === 'pwm_0_10v') {
+      const pin = config.pin || 'broche ?';
+      const modes = profile.pwmModes || [];
+      const mode = modes.find(m => m.id === config.pwmMode);
+      const modeLabel = mode ? mode.label : (config.pwmMode || 'mode ?');
+      const supply = (config.supply && (config.supply.voltage || config.supply.min))
+        ? `${config.supply.voltage || config.supply.min} V alim`
+        : '';
+      return `${pin} · ${modeLabel}${supply ? ' · ' + supply : ''}`;
+    }
+    return profile.summary || profile.label;
+  }
+
+  function summariseRange(output) {
+    const range = output.config && output.config.range ? output.config.range : null;
+    if (!range) return '—';
+    const unit = range.unit || '';
+    return `${range.min ?? '?'} ${unit} → ${range.max ?? '?'} ${unit}`;
+  }
+
+  function renderTable() {
+    tableBody.innerHTML = '';
+    outputs.forEach((output, index) => {
+      const tr = document.createElement('tr');
+      tr.dataset.index = index;
+      if (index === selectedIndex) tr.classList.add('selected');
+
+      const idCell = document.createElement('td');
+      const idInput = document.createElement('input');
+      idInput.type = 'text';
+      idInput.value = output.id || '';
+      idInput.addEventListener('input', event => {
+        output.id = event.target.value.trim();
+        if (index === selectedIndex) {
+          renderDetailPanel();
+        }
+      });
+      idInput.addEventListener('change', () => {
+        renderTable();
+        renderDetailPanel();
+      });
+      idCell.appendChild(idInput);
+      tr.appendChild(idCell);
+
+      const typeCell = document.createElement('td');
+      const select = document.createElement('select');
+      const typeOptions = Array.from(ensureHardwareProfiles().values());
+      typeOptions.forEach(profile => {
+        const option = document.createElement('option');
+        option.value = profile.type;
+        option.textContent = profile.label;
+        select.appendChild(option);
+      });
+      select.value = output.type;
+      select.addEventListener('change', event => {
+        const newType = event.target.value;
+        const profile = findProfile(newType);
+        output.type = newType;
+        if (profile) {
+          output.config = deepClone(profile.configTemplate || {});
+          if (!output.id || output.id.startsWith('OUT')) {
+            output.id = createUniqueId(profile.defaultId || newType.toUpperCase());
+          }
+        }
+        selectedIndex = index;
+        renderTable();
+        renderDetailPanel();
+      });
+      typeCell.appendChild(select);
+      tr.appendChild(typeCell);
+
+      const summaryCell = document.createElement('td');
+      summaryCell.dataset.field = 'summary';
+      summaryCell.textContent = summariseOutput(output);
+      tr.appendChild(summaryCell);
+
+      const rangeCell = document.createElement('td');
+      rangeCell.textContent = summariseRange(output);
+      tr.appendChild(rangeCell);
+
+      const actionCell = document.createElement('td');
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'danger';
+      deleteBtn.textContent = 'Supprimer';
+      deleteBtn.addEventListener('click', event => {
+        event.stopPropagation();
+        if (!confirm(`Supprimer la sortie ${output.id || '(sans nom)'} ?`)) return;
+        outputs.splice(index, 1);
+        if (selectedIndex === index) {
+          selectedIndex = -1;
+        } else if (selectedIndex > index) {
+          selectedIndex -= 1;
+        }
+        renderTable();
+        renderDetailPanel();
+      });
+      actionCell.appendChild(deleteBtn);
+      tr.appendChild(actionCell);
+
+      tr.addEventListener('click', () => {
+        selectedIndex = index;
+        renderTable();
+        renderDetailPanel();
+      });
+
+      tableBody.appendChild(tr);
+    });
+    if (!outputs.length) {
+      const empty = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 5;
+      cell.textContent = 'Aucune sortie configurée pour le moment.';
+      empty.appendChild(cell);
+      tableBody.appendChild(empty);
+    }
+  }
+
+  function bindInput(label, value, options = {}) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'field';
+    const span = document.createElement('span');
+    span.textContent = label;
+    wrapper.appendChild(span);
+    const input = document.createElement(options.tagName || 'input');
+    if (options.tagName === 'textarea') {
+      input.value = value || '';
+    } else if (options.tagName === 'select') {
+      (options.choices || []).forEach(choice => {
+        const opt = document.createElement('option');
+        opt.value = choice.value;
+        opt.textContent = choice.label;
+        input.appendChild(opt);
+      });
+      input.value = value || (options.choices && options.choices[0] ? options.choices[0].value : '');
+    } else {
+      input.type = options.type || 'text';
+      if (input.type === 'number' && options.step) input.step = options.step;
+      if (options.min !== undefined) input.min = options.min;
+      if (options.max !== undefined) input.max = options.max;
+      input.value = value !== undefined && value !== null ? value : '';
+    }
+    if (options.onChange) {
+      input.addEventListener('input', options.onChange);
+      if (options.tagName === 'select') {
+        input.addEventListener('change', options.onChange);
+      }
+    }
+    wrapper.appendChild(input);
+    return wrapper;
+  }
+
+  function renderPwmRcDetails(container, output, profile) {
+    const config = output.config;
+    config.filter = config.filter || {};
+    config.range = config.range || { min: 0, max: 3.3, unit: 'V' };
+
+    const form = document.createElement('div');
+    form.className = 'form-grid';
+
+    form.appendChild(bindInput('Broche PWM', config.pin, {
+      tagName: 'select',
+      choices: (profile.pins && profile.pins.length ? profile.pins : DEFAULT_OUTPUT_PROFILES[0].pins).map(pin => ({
+        value: pin.value || pin.label,
+        label: pin.label || pin.value
+      })),
+      onChange: event => {
+        config.pin = event.target.value;
+        renderTable();
+      }
+    }));
+
+    const rcModes = (profile.pwmModes && profile.pwmModes.length)
+      ? profile.pwmModes
+      : DEFAULT_OUTPUT_PROFILES[0].pwmModes;
+
+    form.appendChild(bindInput('Mode PWM', config.pwmMode, {
+      tagName: 'select',
+      choices: rcModes.map(mode => ({ value: mode.id, label: mode.label })),
+      onChange: event => {
+        config.pwmMode = event.target.value;
+        const mode = rcModes.find(m => m.id === config.pwmMode);
+        if (mode && mode.frequency) {
+          config.frequency = mode.frequency;
+        }
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Fréquence PWM (Hz)', config.frequency, {
+      type: 'number',
+      step: '1',
+      min: 1,
+      onChange: event => {
+        config.frequency = Number(event.target.value);
+      }
+    }));
+
+    form.appendChild(bindInput('Résistance R (Ω)', config.filter.r_ohm, {
+      type: 'number',
+      step: '1',
+      min: 0,
+      onChange: event => {
+        config.filter.r_ohm = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Capacité C (µF)', config.filter.c_uF, {
+      type: 'number',
+      step: '0.1',
+      min: 0,
+      onChange: event => {
+        config.filter.c_uF = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Plage min (unité)', config.range.min, {
+      type: 'number',
+      step: '0.01',
+      onChange: event => {
+        config.range.min = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Plage max (unité)', config.range.max, {
+      type: 'number',
+      step: '0.01',
+      onChange: event => {
+        config.range.max = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Unité', config.range.unit, {
+      onChange: event => {
+        config.range.unit = event.target.value;
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Notes', config.notes, {
+      tagName: 'textarea',
+      onChange: event => {
+        config.notes = event.target.value;
+      }
+    }));
+
+    const notes = document.createElement('ul');
+    notes.innerHTML = `
+      <li>Constante de temps τ = R × C. Avec 10 kΩ / 10 µF → τ ≈ 0,1 s.</li>
+      <li>Pour des réponses plus rapides, augmenter la fréquence PWM ou diminuer C.</li>
+    `;
+
+    container.appendChild(form);
+    container.appendChild(notes);
+  }
+
+  function renderMcpDetails(container, output, profile) {
+    const config = output.config;
+    config.range = config.range || { min: 0, max: 3.3, unit: 'V' };
+
+    const form = document.createElement('div');
+    form.className = 'form-grid';
+
+    form.appendChild(bindInput('Adresse I²C', config.address, {
+      tagName: 'select',
+      choices: (profile.addresses || ['0x60', '0x61']).map(addr => ({ value: addr, label: addr })),
+      onChange: event => {
+        config.address = event.target.value;
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Référence (V)', config.vref, {
+      type: 'number',
+      step: '0.01',
+      min: 0,
+      onChange: event => {
+        config.vref = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Plage min (V)', config.range.min, {
+      type: 'number',
+      step: '0.001',
+      onChange: event => {
+        config.range.min = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Plage max (V)', config.range.max, {
+      type: 'number',
+      step: '0.001',
+      onChange: event => {
+        config.range.max = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Unité', config.range.unit || profile.defaultUnit || 'V', {
+      onChange: event => {
+        config.range.unit = event.target.value;
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Notes', config.notes, {
+      tagName: 'textarea',
+      onChange: event => {
+        config.notes = event.target.value;
+      }
+    }));
+
+    const ul = document.createElement('ul');
+    ul.innerHTML = `
+      <li>Résolution : 4096 pas → ≈ ${(config.vref || 3.3) / 4096} V/LSB.</li>
+      <li>Penser à relier SDA/SCL avec résistances de tirage si nécessaire.</li>
+    `;
+
+    container.appendChild(form);
+    container.appendChild(ul);
+  }
+
+  function renderPwm10Details(container, output, profile) {
+    const config = output.config;
+    config.range = config.range || { min: 0, max: 10, unit: 'V' };
+    config.supply = config.supply || { voltage: 24, unit: 'V' };
+    config.inputLevel = config.inputLevel || { min: 4.5, max: 24, unit: 'V' };
+
+    const form = document.createElement('div');
+    form.className = 'form-grid';
+
+    form.appendChild(bindInput('Broche PWM', config.pin, {
+      tagName: 'select',
+      choices: (profile.pins || DEFAULT_OUTPUT_PROFILES[2].pins).map(pin => ({
+        value: pin.value || pin.label,
+        label: pin.label || pin.value
+      })),
+      onChange: event => {
+        config.pin = event.target.value;
+        renderTable();
+      }
+    }));
+
+    const pwm10Modes = (profile.pwmModes && profile.pwmModes.length)
+      ? profile.pwmModes
+      : DEFAULT_OUTPUT_PROFILES[2].pwmModes;
+
+    form.appendChild(bindInput('Mode PWM', config.pwmMode, {
+      tagName: 'select',
+      choices: pwm10Modes.map(mode => ({ value: mode.id, label: mode.label })),
+      onChange: event => {
+        config.pwmMode = event.target.value;
+        const mode = pwm10Modes.find(m => m.id === config.pwmMode);
+        if (mode && mode.frequency) config.frequency = mode.frequency;
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Fréquence PWM (Hz)', config.frequency, {
+      type: 'number',
+      step: '1',
+      min: 1000,
+      max: 3000,
+      onChange: event => {
+        config.frequency = Number(event.target.value);
+      }
+    }));
+
+    form.appendChild(bindInput('Alimentation module (V)', config.supply.voltage, {
+      type: 'number',
+      step: '1',
+      min: 12,
+      max: 30,
+      onChange: event => {
+        config.supply.voltage = Number(event.target.value);
+      }
+    }));
+
+    form.appendChild(bindInput('Entrée PWM min (V)', config.inputLevel.min, {
+      type: 'number',
+      step: '0.1',
+      min: 0,
+      onChange: event => {
+        config.inputLevel.min = Number(event.target.value);
+      }
+    }));
+
+    form.appendChild(bindInput('Entrée PWM max (V)', config.inputLevel.max, {
+      type: 'number',
+      step: '0.1',
+      min: 0,
+      onChange: event => {
+        config.inputLevel.max = Number(event.target.value);
+      }
+    }));
+
+    form.appendChild(bindInput('Plage min (V)', config.range.min, {
+      type: 'number',
+      step: '0.1',
+      onChange: event => {
+        config.range.min = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Plage max (V)', config.range.max, {
+      type: 'number',
+      step: '0.1',
+      onChange: event => {
+        config.range.max = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Unité', config.range.unit || 'V', {
+      onChange: event => {
+        config.range.unit = event.target.value;
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Position du cavalier', config.jumper, {
+      onChange: event => {
+        config.jumper = event.target.value;
+      }
+    }));
+
+    form.appendChild(bindInput('Notes', config.notes, {
+      tagName: 'textarea',
+      onChange: event => {
+        config.notes = event.target.value;
+      }
+    }));
+
+    const ul = document.createElement('ul');
+    ul.innerHTML = `
+      <li>Alimentation recommandée : ${profile.supply ? `${profile.supply.min}–${profile.supply.max} ${profile.supply.unit}` : '12–30 V'}. Courant ≥ ${(profile.supply && profile.supply.current_mA) || 100} mA.</li>
+      <li>Plage d’entrée PWM : ${(profile.inputLevel && profile.inputLevel.min) || 4.5}–${(profile.inputLevel && profile.inputLevel.max) || 24} V.</li>
+      <li>Ajustez le potentiomètre pour garantir 10 V à 100 % PWM.</li>
+    `;
+
+    container.appendChild(form);
+    container.appendChild(ul);
+  }
+
+  function renderDetailPanel() {
+    detailPanel.innerHTML = '';
+    if (selectedIndex < 0 || selectedIndex >= outputs.length) {
+      const title = document.createElement('h3');
+      title.textContent = 'Sélectionnez une sortie';
+      const p = document.createElement('p');
+      p.className = 'legend';
+      p.textContent = 'Cliquez sur une ligne de la table pour afficher la configuration détaillée.';
+      detailPanel.appendChild(title);
+      detailPanel.appendChild(p);
+      return;
+    }
+    const output = outputs[selectedIndex];
+    const profile = findProfile(output.type);
+    if (!profile) {
+      const title = document.createElement('h3');
+      title.textContent = output.id || 'Sortie';
+      const p = document.createElement('p');
+      p.textContent = 'Type non reconnu. Sélectionnez un type valide.';
+      detailPanel.appendChild(title);
+      detailPanel.appendChild(p);
+      return;
+    }
+
+    const title = document.createElement('h3');
+    title.textContent = `${output.id || '(sans ID)'} – ${profile.label}`;
+    const legend = document.createElement('p');
+    legend.className = 'legend';
+    legend.textContent = profile.summary || 'Paramètres matériels.';
+
+    detailPanel.appendChild(title);
+    detailPanel.appendChild(legend);
+
+    if (output.type === 'pwm_rc') {
+      const diagram = document.createElement('div');
+      diagram.className = 'diagram';
+      diagram.innerHTML = `
+<pre>        ESP8266 (${output.config.pin || 'Dx'})
+              │
+              │  PWM (${output.config.frequency || 'f'} Hz)
+              │
+             ┌┴┐
+             │ │ R (${output.config.filter?.r_ohm || 'R'} Ω)
+             │ │
+             └┬┘
+              │───────────────&gt; Vout (${output.config.range?.max || '?'} ${output.config.range?.unit || 'V'} max)
+              │
+             ┌─┐
+             │ │ C (${output.config.filter?.c_uF || 'C'} µF)
+             │ │
+             └─┘
+              │
+             GND</pre>`;
+      detailPanel.appendChild(diagram);
+      renderPwmRcDetails(detailPanel, output, profile);
+      return;
+    }
+
+    if (output.type === 'mcp4725') {
+      renderMcpDetails(detailPanel, output, profile);
+      return;
+    }
+
+    if (output.type === 'pwm_0_10v') {
+      renderPwm10Details(detailPanel, output, profile);
+      return;
+    }
+
+    const p = document.createElement('p');
+    p.textContent = 'Aucun formulaire disponible pour ce type.';
+    detailPanel.appendChild(p);
+  }
+
+  function loadConfiguration() {
+    setStatus('Lecture des données…');
+    return fetch('/api/config?area=outputs')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        const list = Array.isArray(data) ? data : (Array.isArray(data.outputs) ? data.outputs : []);
+        outputs = list.map(normaliseOutput);
+        if (!outputs.length) {
+          const defaultProfile = findProfile('pwm_rc') || DEFAULT_OUTPUT_PROFILES[0];
+          outputs = [normaliseOutput({ type: defaultProfile.type, id: defaultProfile.defaultId || 'AO0', config: defaultProfile.configTemplate })];
+        }
+        selectedIndex = outputs.length ? 0 : -1;
+        renderTable();
+        renderDetailPanel();
+        setStatus('Configuration chargée.', 'ok');
+      })
+      .catch(err => {
+        console.error(err);
+        outputs = DEFAULT_OUTPUT_PROFILES.map(profile => normaliseOutput({ type: profile.type, id: profile.defaultId, config: profile.configTemplate }));
+        selectedIndex = outputs.length ? 0 : -1;
+        renderTable();
+        renderDetailPanel();
+        setStatus('Erreur de lecture – utilisation des valeurs par défaut.', 'error');
+      });
+  }
+
+  function saveConfiguration() {
+    setStatus('Enregistrement…');
+    const payload = outputs.map(output => ({
+      id: output.id,
+      type: output.type,
+      config: output.config
+    }));
+    return fetch('/api/config?area=outputs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        setStatus('Configuration enregistrée.', 'ok');
+      })
+      .catch(err => {
+        console.error(err);
+        setStatus('Échec de l’enregistrement.', 'error');
+      });
+  }
+
+  document.getElementById('addOutput').addEventListener('click', () => {
+    const type = newOutputType.value || (hardwareProfiles[0] && hardwareProfiles[0].type);
+    const profile = findProfile(type);
+    if (!profile) return;
+    const id = createUniqueId(profile.defaultId || type.toUpperCase());
+    const entry = normaliseOutput({ id, type, config: profile.configTemplate });
+    outputs.push(entry);
+    selectedIndex = outputs.length - 1;
+    renderTable();
+    renderDetailPanel();
+    setStatus(`Sortie ${id} ajoutée.`, 'ok');
+  });
+
+  document.getElementById('refresh').addEventListener('click', () => {
+    loadConfiguration();
+  });
+
+  document.getElementById('save').addEventListener('click', () => {
+    saveConfiguration();
+  });
+
+  loadHardwareCapabilities().then(() => loadConfiguration());
+  </script>
+</body>
+</html>

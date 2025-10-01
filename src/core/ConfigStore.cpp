@@ -12,6 +12,7 @@ void ConfigStore::begin() {
       "general",
       "network",
       "io",
+      "outputs",
       "dmm",
       "funcgen",
       "scope",

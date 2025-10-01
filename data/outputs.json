@@ -1,0 +1,60 @@
+[
+  {
+    "id": "AO0",
+    "type": "pwm_rc",
+    "config": {
+      "pin": "D2",
+      "pwmMode": "balanced",
+      "frequency": 5000,
+      "filter": {
+        "r_ohm": 10000,
+        "c_uF": 10
+      },
+      "range": {
+        "min": 0,
+        "max": 3.3,
+        "unit": "V"
+      },
+      "notes": "Sortie analogique lissée via filtre RC (10 kΩ / 10 µF)."
+    }
+  },
+  {
+    "id": "DAC0",
+    "type": "mcp4725",
+    "config": {
+      "address": "0x60",
+      "range": {
+        "min": 0,
+        "max": 3.3,
+        "unit": "V"
+      },
+      "vref": 3.3,
+      "notes": "MCP4725 alimenté en 3,3 V, sortie 0-3,3 V proportionnelle."
+    }
+  },
+  {
+    "id": "AO10",
+    "type": "pwm_0_10v",
+    "config": {
+      "pin": "D1",
+      "pwmMode": "standard",
+      "frequency": 2000,
+      "range": {
+        "min": 0,
+        "max": 10,
+        "unit": "V"
+      },
+      "supply": {
+        "voltage": 24,
+        "unit": "V"
+      },
+      "inputLevel": {
+        "min": 4.5,
+        "max": 24,
+        "unit": "V"
+      },
+      "jumper": "5V",
+      "notes": "Module PWM→0-10 V alimenté en 24 V, cavalier en position 5 V."
+    }
+  }
+]
