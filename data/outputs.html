@@ -348,6 +348,14 @@
         <li>Fréquence d’entrée recommandée : 1–3&nbsp;kHz. Ajuster le potentiomètre pour caler 10&nbsp;V.</li>
       </ul>
     </article>
+    <article>
+      <h3>Doubleur de tension à diode/condensateur</h3>
+      <ul>
+        <li>Pompe de charge commandée en PWM (~2×Vin) pour charges très légères (&lt;5&nbsp;mA).</li>
+        <li>Privilégier des diodes Schottky et des condensateurs à faible ESR pour limiter les pertes.</li>
+        <li>Idéal pour générer une référence flottante ou un offset supérieur au 3,3&nbsp;V.</li>
+      </ul>
+    </article>
   </section>
 
   <script>
@@ -376,7 +384,7 @@
         pwmMode: 'balanced',
         frequency: 5000,
         filter: { r_ohm: 10000, c_uF: 10 },
-        range: { min: 0, max: 3.3, unit: 'V' },
+        range: { min: 0, max: 3.3, unit: 'V', hardware: { min: 0, max: 3.3 } },
         notes: 'Utiliser un filtre RC (10 kΩ / 10 µF) pour lisser la PWM.'
       }
     },
@@ -389,7 +397,7 @@
       addresses: ['0x60', '0x61'],
       configTemplate: {
         address: '0x60',
-        range: { min: 0, max: 3.3, unit: 'V' },
+        range: { min: 0, max: 3.3, unit: 'V', hardware: { min: 0, max: 3.3 } },
         vref: 3.3,
         notes: 'Le MCP4725 utilise l’alimentation comme référence.'
       }
@@ -418,11 +426,36 @@
         pin: 'D1',
         pwmMode: 'standard',
         frequency: 2000,
-        range: { min: 0, max: 10, unit: 'V' },
+        range: { min: 0, max: 10, unit: 'V', hardware: { min: 0, max: 10.5 } },
         supply: { voltage: 24, unit: 'V' },
         inputLevel: { min: 4.5, max: 24, unit: 'V' },
         jumper: '5V',
         notes: 'Alimenter entre 12 et 30 V. Régler le potentiomètre pour caler 10 V.'
+      }
+    },
+    {
+      type: 'charge_pump_doubler',
+      label: 'Doubleur de tension (pompe de charge)',
+      defaultId: 'AOX2',
+      defaultUnit: 'V',
+      summary: 'Pompe de charge diode/condensateur (~2 × Vin) pour charges légères.',
+      pins: [
+        { value: 'D2', label: 'D2 (GPIO4)' },
+        { value: 'D5', label: 'D5 (GPIO14)' },
+        { value: 'D6', label: 'D6 (GPIO12)' },
+        { value: 'D7', label: 'D7 (GPIO13)' }
+      ],
+      pwmModes: [
+        { id: 'balanced', label: 'Équilibré (≈2 kHz)', frequency: 2000 },
+        { id: 'fast', label: 'Rapide (≈8 kHz)', frequency: 8000 }
+      ],
+      configTemplate: {
+        pin: 'D6',
+        pwmMode: 'balanced',
+        frequency: 4000,
+        pump: { c_uF: 1, diode: 'Schottky', load_kOhm: 10 },
+        range: { min: 0, max: 6, unit: 'V', hardware: { min: 0, max: 6.6 } },
+        notes: 'Pompe de charge doubleur avec diode Schottky et condensateur 1 µF.'
       }
     }
   ];
@@ -500,6 +533,12 @@
     if (!result.config.range) {
       result.config.range = { min: 0, max: 1, unit: profile.defaultUnit || '' };
     }
+    if (!result.config.range.hardware) {
+      result.config.range.hardware = {
+        min: result.config.range.min ?? 0,
+        max: result.config.range.max ?? 0
+      };
+    }
     return result;
   }
 
@@ -540,7 +579,14 @@
           });
         }
         if (locals.length) {
-          hardwareProfiles = locals;
+          const map = new Map();
+          DEFAULT_OUTPUT_PROFILES.forEach(def => {
+            map.set(def.type, deepClone(def));
+          });
+          locals.forEach(profile => {
+            map.set(profile.type, profile);
+          });
+          hardwareProfiles = Array.from(map.values());
         } else {
           hardwareProfiles = DEFAULT_OUTPUT_PROFILES.map(def => deepClone(def));
         }
@@ -555,14 +601,22 @@
   function populateNewOutputSelect() {
     const profiles = Array.from(ensureHardwareProfiles().values());
     newOutputType.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Choisir un module…';
+    placeholder.disabled = true;
+    newOutputType.appendChild(placeholder);
     profiles.forEach(profile => {
       const option = document.createElement('option');
       option.value = profile.type;
-      option.textContent = `${profile.label}`;
+      option.textContent = profile.label || profile.type;
       newOutputType.appendChild(option);
     });
     if (profiles.length) {
+      placeholder.selected = false;
       newOutputType.value = profiles[0].type;
+    } else {
+      placeholder.selected = true;
     }
   }
 
@@ -594,14 +648,31 @@
         : '';
       return `${pin} · ${modeLabel}${supply ? ' · ' + supply : ''}`;
     }
-    return profile.summary || profile.label;
+    if (output.type === 'charge_pump_doubler') {
+      const pin = config.pin || 'broche ?';
+      const diode = (config.pump && config.pump.diode) || 'diode ?';
+      const unit = (config.range && config.range.unit) || profile.defaultUnit || 'V';
+      const hwMax = config.range?.hardware?.max ?? config.range?.max;
+      return `${pin} · ${diode} · ≈ ${hwMax ?? '?'} ${unit}`;
+    }
+    const fallback = profile.summary || profile.label || output.type;
+    return fallback;
   }
 
   function summariseRange(output) {
     const range = output.config && output.config.range ? output.config.range : null;
     if (!range) return '—';
     const unit = range.unit || '';
-    return `${range.min ?? '?'} ${unit} → ${range.max ?? '?'} ${unit}`;
+    const unitSuffix = unit ? ` ${unit}` : '';
+    const fmt = value => `${value ?? '?'}${unitSuffix}`;
+    const base = `${fmt(range.min)} → ${fmt(range.max)}`;
+    const hardware = range.hardware;
+    if (hardware && (hardware.min !== undefined || hardware.max !== undefined)) {
+      const hwMin = hardware.min ?? '?';
+      const hwMax = hardware.max ?? '?';
+      return `${base} (HW ${hwMin}${unitSuffix} → ${hwMax}${unitSuffix})`;
+    }
+    return base;
   }
 
   function renderTable() {
@@ -634,7 +705,7 @@
       typeOptions.forEach(profile => {
         const option = document.createElement('option');
         option.value = profile.type;
-        option.textContent = profile.label;
+        option.textContent = profile.label || profile.type;
         select.appendChild(option);
       });
       select.value = output.type;
@@ -740,6 +811,7 @@
     const config = output.config;
     config.filter = config.filter || {};
     config.range = config.range || { min: 0, max: 3.3, unit: 'V' };
+    config.range.hardware = config.range.hardware || { min: config.range.min, max: config.range.max };
 
     const form = document.createElement('div');
     form.className = 'form-grid';
@@ -820,6 +892,24 @@
       }
     }));
 
+    form.appendChild(bindInput('Limite matérielle min', config.range.hardware.min, {
+      type: 'number',
+      step: '0.01',
+      onChange: event => {
+        config.range.hardware.min = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Limite matérielle max', config.range.hardware.max, {
+      type: 'number',
+      step: '0.01',
+      onChange: event => {
+        config.range.hardware.max = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
     form.appendChild(bindInput('Unité', config.range.unit, {
       onChange: event => {
         config.range.unit = event.target.value;
@@ -847,6 +937,7 @@
   function renderMcpDetails(container, output, profile) {
     const config = output.config;
     config.range = config.range || { min: 0, max: 3.3, unit: 'V' };
+    config.range.hardware = config.range.hardware || { min: config.range.min, max: config.range.max };
 
     const form = document.createElement('div');
     form.className = 'form-grid';
@@ -888,6 +979,24 @@
       }
     }));
 
+    form.appendChild(bindInput('Limite matérielle min (V)', config.range.hardware.min, {
+      type: 'number',
+      step: '0.001',
+      onChange: event => {
+        config.range.hardware.min = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Limite matérielle max (V)', config.range.hardware.max, {
+      type: 'number',
+      step: '0.001',
+      onChange: event => {
+        config.range.hardware.max = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
     form.appendChild(bindInput('Unité', config.range.unit || profile.defaultUnit || 'V', {
       onChange: event => {
         config.range.unit = event.target.value;
@@ -915,6 +1024,7 @@
   function renderPwm10Details(container, output, profile) {
     const config = output.config;
     config.range = config.range || { min: 0, max: 10, unit: 'V' };
+    config.range.hardware = config.range.hardware || { min: config.range.min, max: config.range.max };
     config.supply = config.supply || { voltage: 24, unit: 'V' };
     config.inputLevel = config.inputLevel || { min: 4.5, max: 24, unit: 'V' };
 
@@ -1004,6 +1114,24 @@
       }
     }));
 
+    form.appendChild(bindInput('Limite matérielle min (V)', config.range.hardware.min, {
+      type: 'number',
+      step: '0.1',
+      onChange: event => {
+        config.range.hardware.min = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Limite matérielle max (V)', config.range.hardware.max, {
+      type: 'number',
+      step: '0.1',
+      onChange: event => {
+        config.range.hardware.max = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
     form.appendChild(bindInput('Unité', config.range.unit || 'V', {
       onChange: event => {
         config.range.unit = event.target.value;
@@ -1032,6 +1160,164 @@
     `;
 
     container.appendChild(form);
+    container.appendChild(ul);
+  }
+
+  function renderChargePumpDetails(container, output, profile) {
+    const config = output.config;
+    config.pump = config.pump || {};
+    config.range = config.range || { min: 0, max: 6, unit: 'V' };
+    config.range.hardware = config.range.hardware || { min: config.range.min, max: config.range.max };
+
+    const diagram = document.createElement('div');
+    diagram.className = 'diagram';
+    diagram.innerHTML = `
+<pre>        ESP8266 (${config.pin || 'Dx'}) PWM (${config.frequency || 'f'} Hz)
+              │
+             ┌┴┐  D1 (pompe)
+             │▶│ ${config.pump.diode || 'diode'}
+             └┬┘
+              │─────────────┬───────&gt; Vout (≈ ${config.range.hardware.max ?? config.range.max ?? '?'} ${config.range.unit || 'V'})
+             ┌─┐            │
+             │ │ Cpompe ${config.pump.c_uF || '?'} µF
+             │ │            │
+             └─┘           ┌┴┐ D2 (clamp)
+              │            │◀│
+             GND           └┬┘
+                            │
+                           Charge ≥${config.pump.load_kOhm || '?'} kΩ
+                            │
+                           GND</pre>`;
+    container.appendChild(diagram);
+
+    const form = document.createElement('div');
+    form.className = 'form-grid';
+
+    const pins = (profile.pins && profile.pins.length ? profile.pins : DEFAULT_OUTPUT_PROFILES[0].pins);
+    form.appendChild(bindInput('Broche PWM', config.pin, {
+      tagName: 'select',
+      choices: pins.map(pin => ({ value: pin.value || pin.label, label: pin.label || pin.value })),
+      onChange: event => {
+        config.pin = event.target.value;
+        renderTable();
+      }
+    }));
+
+    const pumpModes = profile.pwmModes && profile.pwmModes.length ? profile.pwmModes : DEFAULT_OUTPUT_PROFILES[0].pwmModes;
+    form.appendChild(bindInput('Mode PWM', config.pwmMode, {
+      tagName: 'select',
+      choices: pumpModes.map(mode => ({ value: mode.id, label: mode.label })),
+      onChange: event => {
+        config.pwmMode = event.target.value;
+        const mode = pumpModes.find(m => m.id === config.pwmMode);
+        if (mode && mode.frequency) {
+          config.frequency = mode.frequency;
+        }
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Fréquence PWM (Hz)', config.frequency, {
+      type: 'number',
+      step: '1',
+      min: 1,
+      onChange: event => {
+        config.frequency = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Capacité pompe (µF)', config.pump.c_uF, {
+      type: 'number',
+      step: '0.1',
+      min: 0,
+      onChange: event => {
+        config.pump.c_uF = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Type de diode', config.pump.diode, {
+      tagName: 'select',
+      choices: [
+        { value: 'Schottky', label: 'Schottky (BAT54, SS14)' },
+        { value: '1N4148', label: '1N4148' },
+        { value: 'Autre', label: 'Autre' }
+      ],
+      onChange: event => {
+        config.pump.diode = event.target.value;
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Charge minimale (kΩ)', config.pump.load_kOhm, {
+      type: 'number',
+      step: '0.1',
+      min: 0,
+      onChange: event => {
+        config.pump.load_kOhm = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Plage min (V)', config.range.min, {
+      type: 'number',
+      step: '0.1',
+      onChange: event => {
+        config.range.min = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Plage max (V)', config.range.max, {
+      type: 'number',
+      step: '0.1',
+      onChange: event => {
+        config.range.max = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Limite matérielle min (V)', config.range.hardware.min, {
+      type: 'number',
+      step: '0.1',
+      onChange: event => {
+        config.range.hardware.min = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Limite matérielle max (V)', config.range.hardware.max, {
+      type: 'number',
+      step: '0.1',
+      onChange: event => {
+        config.range.hardware.max = Number(event.target.value);
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Unité', config.range.unit || profile.defaultUnit || 'V', {
+      onChange: event => {
+        config.range.unit = event.target.value;
+        renderTable();
+      }
+    }));
+
+    form.appendChild(bindInput('Notes', config.notes, {
+      tagName: 'textarea',
+      onChange: event => {
+        config.notes = event.target.value;
+      }
+    }));
+
+    container.appendChild(form);
+
+    const ul = document.createElement('ul');
+    ul.innerHTML = `
+      <li>Utiliser de préférence une diode Schottky pour réduire la chute directe.</li>
+      <li>Le courant disponible reste limité (quelques mA) : prévoir une charge ≥${config.pump.load_kOhm || 10} kΩ.</li>
+      <li>Ajouter un condensateur de réservoir supplémentaire pour stabiliser la tension.</li>
+    `;
     container.appendChild(ul);
   }
 
@@ -1100,6 +1386,11 @@
 
     if (output.type === 'pwm_0_10v') {
       renderPwm10Details(detailPanel, output, profile);
+      return;
+    }
+
+    if (output.type === 'charge_pump_doubler') {
+      renderChargePumpDetails(detailPanel, output, profile);
       return;
     }
 
