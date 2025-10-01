@@ -1091,6 +1091,8 @@
     let scopeFallbackCache = null;
     let scopeApiUnavailable = false;
     let scopeChannelOffsets = {};
+    let scopeConfigCache = null;
+    let scopeConfigUnavailable = false;
 
     function formatVolt(value, suffix=''){
       if(value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -1146,14 +1148,64 @@
     populateSelect(scopeVoltSelect, scopeVoltsPerDivValues, (v)=>formatVoltPerDiv(v));
 
     function updateTimebaseDisplay(ms){
-      const label = formatTimebase(ms);
+      const label = (scopeUsingFallback || scopeApiUnavailable) ? '— ms/div' : formatTimebase(ms);
       if(scopeTimebasePill){ scopeTimebasePill.textContent = label; }
-      if(scopeTimeLabel){ scopeTimeLabel.textContent = label === '—' ? '—' : label.replace('/div',''); }
+      if(scopeTimeLabel){
+        if(scopeUsingFallback || scopeApiUnavailable || label === '—'){
+          scopeTimeLabel.textContent = '—';
+        }else{
+          scopeTimeLabel.textContent = label.replace('/div','');
+        }
+      }
     }
 
     function updateVoltDisplay(v){
       const label = formatVoltPerDiv(v);
       if(scopeVoltageLabel){ scopeVoltageLabel.textContent = label; }
+    }
+
+    async function ensureScopeConfig(){
+      if(scopeConfigUnavailable) return null;
+      if(scopeConfigCache) return scopeConfigCache;
+      try{
+        const r = await j('/api/config?area=scope');
+        if(!r.ok){
+          if(r.status === 404){
+            scopeConfigUnavailable = true;
+            return null;
+          }
+          throw new Error('bad status');
+        }
+        const cfg = await r.json();
+        scopeConfigCache = Object.assign({}, cfg || {});
+        return scopeConfigCache;
+      }catch(err){
+        console.warn(err);
+        scopeConfigUnavailable = true;
+        return null;
+      }
+    }
+
+    async function saveScopeConfigPatch(patch){
+      if(scopeConfigUnavailable) return false;
+      const base = (await ensureScopeConfig()) || {};
+      if(scopeConfigUnavailable) return false;
+      const merged = Object.assign({}, base, patch);
+      try{
+        const r = await j('/api/config?area=scope',{method:'PUT', body: JSON.stringify(merged)});
+        if(!r.ok){
+          if(r.status === 404){
+            scopeConfigUnavailable = true;
+            return false;
+          }
+          throw new Error('bad status');
+        }
+        scopeConfigCache = merged;
+        return true;
+      }catch(err){
+        console.warn(err);
+        return false;
+      }
     }
 
     function findClosestIndex(values, target){
@@ -1255,52 +1307,65 @@
     async function applyScopeTimebase(ms){
       if(!scopeTimebaseSelect) return;
       updateTimebaseDisplay(ms);
-      if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Envoi…'; }
-      try{
-        const r = await j('/api/scope/timebase',{method:'POST', body: JSON.stringify({ms_per_div: ms})});
-        if(!r.ok){
-          if(r.status === 404){
-            scopeApiUnavailable = true;
-            scopeNextScopeApiRetry = Number.POSITIVE_INFINITY;
-            if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Réglage non supporté.'; }
-            setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2500);
-            return;
-          }
-          throw new Error('bad');
+      if(scopeApiUnavailable || scopeUsingFallback || scopeConfigUnavailable){
+        if(scopeTimebaseStatus){
+          scopeTimebaseStatus.textContent = 'Mode hors ligne.';
+          setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2000);
         }
+        return;
+      }
+      if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Envoi…'; }
+      const patch = {
+        timebase: ms,
+        timebase_ms_per_div: ms,
+        ms_per_div: ms
+      };
+      if(scopeSelectedChannel){
+        patch.channel = scopeSelectedChannel;
+      }
+      const ok = await saveScopeConfigPatch(patch);
+      if(!ok){
+        if(scopeTimebaseStatus){
+          scopeTimebaseStatus.textContent = scopeConfigUnavailable ? 'Mode hors ligne.' : 'Erreur de réglage.';
+          setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2000);
+        }
+        return;
+      }
+      if(scopeTimebaseStatus){
         scopeTimebaseStatus.textContent = 'Synchronisé';
         setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 1500);
-      }catch(e){
-        console.warn(e);
-        if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Erreur de réglage.'; }
-        setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2000);
       }
     }
 
     async function applyScopeVoltPerDiv(volts){
       if(!scopeVoltSelect) return;
       updateVoltDisplay(volts);
-      if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Envoi…'; }
-      try{
-        const r = await j('/api/scope/volt',{method:'POST', body: JSON.stringify({volts_per_div: volts})});
-        if(!r.ok){
-          if(r.status === 404){
-            scopeApiUnavailable = true;
-            scopeNextScopeApiRetry = Number.POSITIVE_INFINITY;
-            if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Réglage non supporté.'; }
-            setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 2500);
-            return;
-          }
-          throw new Error('bad');
-        }
+      if(scopeApiUnavailable || scopeUsingFallback || scopeConfigUnavailable){
         if(scopeVoltStatus){
-          scopeVoltStatus.textContent = 'Synchronisé';
-          setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 1500);
+          scopeVoltStatus.textContent = 'Mode hors ligne.';
+          setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 2000);
         }
-      }catch(err){
-        console.warn(err);
-        if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Erreur de réglage.'; }
-        setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 2000);
+        return;
+      }
+      if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Envoi…'; }
+      const patch = {
+        volts_per_div: volts,
+        vdiv: volts
+      };
+      if(scopeSelectedChannel){
+        patch.channel = scopeSelectedChannel;
+      }
+      const ok = await saveScopeConfigPatch(patch);
+      if(!ok){
+        if(scopeVoltStatus){
+          scopeVoltStatus.textContent = scopeConfigUnavailable ? 'Mode hors ligne.' : 'Erreur de réglage.';
+          setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 2000);
+        }
+        return;
+      }
+      if(scopeVoltStatus){
+        scopeVoltStatus.textContent = 'Synchronisé';
+        setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 1500);
       }
     }
 
@@ -1595,6 +1660,23 @@
         updateVoltDisplay(getCurrentVoltPerDiv());
       }
 
+      if(!scopeConfigUnavailable){
+        const configFromScope = Object.assign({}, scopeConfigCache || {});
+        if(timebase !== null){
+          configFromScope.timebase = timebase;
+          configFromScope.timebase_ms_per_div = timebase;
+          configFromScope.ms_per_div = timebase;
+        }
+        if(typeof data.volts_per_div === 'number'){
+          configFromScope.volts_per_div = data.volts_per_div;
+          configFromScope.vdiv = data.volts_per_div;
+        }
+        if(scopeSelectedChannel){
+          configFromScope.channel = scopeSelectedChannel;
+        }
+        scopeConfigCache = configFromScope;
+      }
+
       renderScope();
     }
 
@@ -1708,6 +1790,7 @@
       await loadDmm();
       loadIOForFunc();
       loadMath();
+      await ensureScopeConfig();
       loadScope();
       setInterval(()=>{ loadDmm(); }, 2000);   // DMM 2 Hz
       setInterval(()=>{ loadScope(); }, 150);  // Scope ~6-7 fps (léger)
