@@ -157,6 +157,9 @@
     .func-meta-cell .func-summary{justify-content:center; font-size:13px; color:#d0def6}
     .func-output-cell{
       background:linear-gradient(160deg, rgba(15,23,35,.9) 0%, rgba(12,18,28,.8) 100%);
+      display:flex;
+      flex-direction:column;
+      gap:12px;
     }
     .func-output-box{display:flex; flex-direction:column; gap:6px}
     .func-output-box label{font-size:12px; color:#9aa6bb; text-transform:uppercase; letter-spacing:.08em}
@@ -166,12 +169,13 @@
     .func-output-box .pill{align-self:flex-start}
     .func-display-cell{padding:0; background:none; height:100%;}
     .func-display{height:100%; min-height:260px; border-radius:16px; width:100%; display:flex; align-items:stretch;}
-    .func-adjust-cell{
+    .func-output-cell .func-adjust-cell{
       display:flex;
       align-items:center;
       justify-content:center;
       background:rgba(12,18,30,.75);
       padding:12px;
+      border-radius:10px;
     }
     .func-adjust-stack{display:flex; flex-direction:column; gap:8px; width:100%; height:100%}
     .func-adjust-stack .func-digit-btn{min-width:0; width:100%; min-height:52px; flex:1 1 auto}
@@ -689,13 +693,19 @@
                     <span class="func-summary-item func-summary-empty" role="listitem">—</span>
                   </div>
                 </td>
-                <td class="func-output-cell">
+                <td class="func-output-cell" rowspan="2">
                   <div class="func-output-box">
                     <label for="func-target">Sortie</label>
                     <select id="func-target" class="select"></select>
                     <div class="func-output-name" id="func-output-name">—</div>
                     <div class="func-output-type" id="func-output-type">type inconnu</div>
                     <div class="pill blue" id="func-range-pill">Plage : —</div>
+                  </div>
+                  <div class="func-adjust-cell">
+                    <div class="func-adjust-stack">
+                      <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur" title="Augmenter">+</button>
+                      <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur" title="Diminuer">−</button>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -707,12 +717,6 @@
                       <div class="func-value-main" id="func-value-main">00<span class="unit">%</span></div>
                       <div class="func-value-secondary" id="func-value-secondary"></div>
                     </div>
-                  </div>
-                </td>
-                <td class="func-adjust-cell" rowspan="2">
-                  <div class="func-adjust-stack">
-                    <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur" title="Augmenter">+</button>
-                    <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur" title="Diminuer">−</button>
                   </div>
                 </td>
               </tr>
