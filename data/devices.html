@@ -115,6 +115,7 @@
     }
     .pill{display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border-radius:999px; font-size:12px; color:#0b1220; background:#b9f6da}
     .pill.blue{background:#bfe7ff}
+    .pill.offline{background:#243244; color:#bfe7ff}
     .content{padding:14px; display:grid; grid-template-columns: 1.2fr .8fr; gap:14px; height:calc(100% - 52px)}
     .content.dmm-vertical{display:flex; flex-direction:column; height:calc(100% - 52px)}
     .content.dmm-vertical .dmm-display{flex:3 1 0; min-height:0; width:100%}
@@ -247,6 +248,12 @@
     #scope-display .reference-line{stroke:#ff6b6b; stroke-width:1.2; stroke-dasharray:6 4}
     #scope-display .reference-label{fill:#9fb5c9; font-size:12px; font-family:inherit}
     #scope-display .scope-legend text{fill:#9fb5c9; font-size:13px; font-family:inherit}
+    .scope-debug-value{
+      font-size:12px; color:#9fb5c9; background:rgba(12,17,27,.75);
+      padding:6px 10px; border-radius:8px; font-variant-numeric:tabular-nums;
+      align-self:flex-start; box-shadow:inset 0 0 0 1px rgba(36,54,72,.6);
+    }
+    .scope-debug-value.empty{opacity:.6}
     .scope-controls{
       flex:0 0 200px;
       border-left:1px solid #162235;
@@ -482,6 +489,7 @@
                     </g>
                   </svg>
                 </div>
+                <div class="scope-debug-value empty" id="scope-debug-value" aria-live="polite">Valeur trace : —</div>
               </div>
               <div class="scope-controls">
                 <div class="scope-control">
@@ -1074,6 +1082,7 @@
     const scopeTraceOpen = $('#scope-trace-open');
     const scopeTraceCancel = $('#scope-trace-cancel');
     const scopeChannelBadge = $('#scope-chan');
+    const scopeDebugValue = $('#scope-debug-value');
     const scopeVoltsPerDivValues = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10];
     const scopeTimebaseValues = [0.05,0.1,0.2,0.5,1,2,5,10,20,50,100,200,500,1000,2000];
     const scopeColorPalette = ['#64ffda','#ffd74d','#3dff70','#ff5f85','#00d2ff','#b19cff'];
@@ -1093,6 +1102,8 @@
     let scopeChannelOffsets = {};
     let scopeConfigCache = null;
     let scopeConfigUnavailable = false;
+    let scopeManualVoltPerDiv = null;
+    let scopeManualTimebase = null;
 
     function formatVolt(value, suffix=''){
       if(value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -1148,14 +1159,14 @@
     populateSelect(scopeVoltSelect, scopeVoltsPerDivValues, (v)=>formatVoltPerDiv(v));
 
     function updateTimebaseDisplay(ms){
-      const label = (scopeUsingFallback || scopeApiUnavailable) ? '— ms/div' : formatTimebase(ms);
-      if(scopeTimebasePill){ scopeTimebasePill.textContent = label; }
+      const hasValue = typeof ms === 'number' && !Number.isNaN(ms);
+      const label = hasValue ? formatTimebase(ms) : '— ms/div';
+      if(scopeTimebasePill){
+        scopeTimebasePill.textContent = label;
+        scopeTimebasePill.classList.toggle('offline', scopeUsingFallback || scopeApiUnavailable || scopeConfigUnavailable);
+      }
       if(scopeTimeLabel){
-        if(scopeUsingFallback || scopeApiUnavailable || label === '—'){
-          scopeTimeLabel.textContent = '—';
-        }else{
-          scopeTimeLabel.textContent = label.replace('/div','');
-        }
+        scopeTimeLabel.textContent = hasValue ? label.replace('/div','') : '—';
       }
     }
 
@@ -1245,10 +1256,76 @@
       return Math.min(Math.max(value, -limit), limit);
     }
 
+    function normalizeSampleValue(sample){
+      if(typeof sample === 'number' && Number.isFinite(sample)) return sample;
+      if(typeof sample === 'string'){
+        const parsed = parseFloat(sample);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+      if(sample && typeof sample === 'object'){
+        if(typeof sample.value === 'number') return sample.value;
+        if(typeof sample.voltage === 'number') return sample.voltage;
+        if(typeof sample.v === 'number') return sample.v;
+        if(typeof sample.y === 'number') return sample.y;
+      }
+      return null;
+    }
+
+    function toSampleArray(raw){
+      if(Array.isArray(raw)) return raw;
+      if(raw && typeof raw === 'object'){
+        const candidates = ['samples','data','values','points'];
+        for(const key of candidates){
+          if(Array.isArray(raw[key])) return raw[key];
+        }
+        if(typeof raw[Symbol.iterator] === 'function'){
+          try{ return Array.from(raw); }catch(e){ return []; }
+        }
+        const keys = Object.keys(raw);
+        if(keys.length && keys.every(k=>/^\d+$/.test(k))){
+          return keys.sort((a,b)=>Number(a)-Number(b)).map(k=>raw[k]);
+        }
+      }
+      if(typeof raw === 'number' || typeof raw === 'string'){
+        return [raw];
+      }
+      return [];
+    }
+
+    function normalizeSamples(raw){
+      const src = toSampleArray(raw);
+      const out = [];
+      for(const entry of src){
+        if(entry === null || entry === undefined) continue;
+        if(Array.isArray(entry)){
+          for(const nested of entry){
+            const val = normalizeSampleValue(nested);
+            if(val !== null) out.push(val);
+          }
+          continue;
+        }
+        const val = normalizeSampleValue(entry);
+        if(val !== null) out.push(val);
+      }
+      return out;
+    }
+
+    function updateScopeDebugValue(value){
+      if(!scopeDebugValue) return;
+      if(typeof value === 'number' && Number.isFinite(value)){
+        scopeDebugValue.textContent = `Valeur trace : ${formatVolt(value)}`;
+        scopeDebugValue.classList.remove('empty');
+      }else{
+        scopeDebugValue.textContent = 'Valeur trace : —';
+        scopeDebugValue.classList.add('empty');
+      }
+    }
+
     function plot(samples, color, voltsPerDiv, offsets){
       if(!scopeTracePath){ return null; }
-      if(!samples || samples.length < 2){
+      if(!samples || !samples.length){
         scopeTracePath.setAttribute('d','');
+        updateScopeDebugValue(null);
         return null;
       }
       const width = scopeGridSize.width;
@@ -1265,6 +1342,12 @@
       const verticalOffset = offsets ? clampOffset(offsets.vertical || 0, scopeOffsetLimits.vertical) : 0;
       const xShift = horizontalOffset * horizontalPixelsPerDiv;
       const yShift = verticalOffset * verticalPixelsPerDiv;
+      if(len === 1){
+        const v = samples[0];
+        scopeTracePath.setAttribute('d','');
+        updateScopeDebugValue(v);
+        return {min: v, max: v, mean: v, voltsPerDiv, offsets: {horizontal: horizontalOffset, vertical: verticalOffset}};
+      }
       for(let i=0;i<len;i++){
         const v = samples[i];
         if(v < min) min = v;
@@ -1277,6 +1360,7 @@
       }
       scopeTracePath.setAttribute('d', d.trim());
       scopeTracePath.setAttribute('stroke', color || '#64ffda');
+      updateScopeDebugValue(samples[samples.length-1]);
       return {min, max, mean: sum/len, voltsPerDiv, offsets: {horizontal: horizontalOffset, vertical: verticalOffset}};
     }
 
@@ -1308,12 +1392,14 @@
       if(!scopeTimebaseSelect) return;
       updateTimebaseDisplay(ms);
       if(scopeApiUnavailable || scopeUsingFallback || scopeConfigUnavailable){
+        scopeManualTimebase = ms;
         if(scopeTimebaseStatus){
-          scopeTimebaseStatus.textContent = 'Mode hors ligne.';
+          scopeTimebaseStatus.textContent = 'Réglage local (hors ligne).';
           setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2000);
         }
         return;
       }
+      scopeManualTimebase = null;
       if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Envoi…'; }
       const patch = {
         timebase: ms,
@@ -1341,12 +1427,14 @@
       if(!scopeVoltSelect) return;
       updateVoltDisplay(volts);
       if(scopeApiUnavailable || scopeUsingFallback || scopeConfigUnavailable){
+        scopeManualVoltPerDiv = volts;
         if(scopeVoltStatus){
-          scopeVoltStatus.textContent = 'Mode hors ligne.';
+          scopeVoltStatus.textContent = 'Réglage local (hors ligne).';
           setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 2000);
         }
         return;
       }
+      scopeManualVoltPerDiv = null;
       if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Envoi…'; }
       const patch = {
         volts_per_div: volts,
@@ -1382,6 +1470,7 @@
       updateVoltDisplay(voltsPerDiv);
       if(!scopeSelectedChannel){
         if(scopeTracePath){ scopeTracePath.setAttribute('d',''); }
+        updateScopeDebugValue(null);
         updateScopeDetails(null, 0);
         return;
       }
@@ -1609,16 +1698,15 @@
     }
 
     function applyScopeData(data){
+      if(!scopeUsingFallback && !scopeApiUnavailable){
+        scopeManualVoltPerDiv = null;
+        scopeManualTimebase = null;
+      }
+
       const rawChannels = data.channels && typeof data.channels === 'object' ? data.channels : {};
       const normalizedChannels = {};
       Object.entries(rawChannels).forEach(([name, samples])=>{
-        if(Array.isArray(samples)){
-          normalizedChannels[name] = samples.slice();
-        }else if(samples && typeof samples[Symbol.iterator] === 'function'){
-          normalizedChannels[name] = Array.from(samples);
-        }else{
-          normalizedChannels[name] = [];
-        }
+        normalizedChannels[name] = normalizeSamples(samples);
       });
       scopeLastScopeData = Object.assign({}, data, {channels: normalizedChannels});
       scopeChannelsData = scopeLastScopeData.channels;
@@ -1643,33 +1731,39 @@
         refreshScopeChannelBadge();
       }
 
-      const timebase = typeof data.timebase_ms_per_div === 'number' ? data.timebase_ms_per_div : null;
-      if(scopeTimebaseSelect && timebase !== null){
-        const idx = findClosestIndex(scopeTimebaseValues, timebase);
+      const timebaseFromData = typeof data.timebase_ms_per_div === 'number' ? data.timebase_ms_per_div : null;
+      const effectiveTimebase = scopeManualTimebase !== null ? scopeManualTimebase : timebaseFromData;
+      if(scopeTimebaseSelect && effectiveTimebase !== null){
+        const idx = findClosestIndex(scopeTimebaseValues, effectiveTimebase);
         scopeTimebaseSelect.value = String(scopeTimebaseValues[idx]);
       }
-      const currentTimebase = getCurrentTimebase();
-      updateTimebaseDisplay(currentTimebase);
+      updateTimebaseDisplay(effectiveTimebase);
       if(scopeTimebaseStatus){
         scopeTimebaseStatus.textContent = scopeTimebaseStatus.textContent === 'Synchronisé' ? scopeTimebaseStatus.textContent : '';
       }
 
-      if(scopeVoltSelect && typeof data.volts_per_div === 'number'){
-        const idx = findClosestIndex(scopeVoltsPerDivValues, data.volts_per_div);
+      const voltsFromData = typeof data.volts_per_div === 'number' ? data.volts_per_div : null;
+      const effectiveVolts = scopeManualVoltPerDiv !== null ? scopeManualVoltPerDiv : voltsFromData;
+      if(scopeVoltSelect && effectiveVolts !== null){
+        const idx = findClosestIndex(scopeVoltsPerDivValues, effectiveVolts);
         scopeVoltSelect.value = String(scopeVoltsPerDivValues[idx]);
+      }
+      if(effectiveVolts !== null){
+        updateVoltDisplay(effectiveVolts);
+      }else{
         updateVoltDisplay(getCurrentVoltPerDiv());
       }
 
       if(!scopeConfigUnavailable){
         const configFromScope = Object.assign({}, scopeConfigCache || {});
-        if(timebase !== null){
-          configFromScope.timebase = timebase;
-          configFromScope.timebase_ms_per_div = timebase;
-          configFromScope.ms_per_div = timebase;
+        if(effectiveTimebase !== null){
+          configFromScope.timebase = effectiveTimebase;
+          configFromScope.timebase_ms_per_div = effectiveTimebase;
+          configFromScope.ms_per_div = effectiveTimebase;
         }
-        if(typeof data.volts_per_div === 'number'){
-          configFromScope.volts_per_div = data.volts_per_div;
-          configFromScope.vdiv = data.volts_per_div;
+        if(effectiveVolts !== null){
+          configFromScope.volts_per_div = effectiveVolts;
+          configFromScope.vdiv = effectiveVolts;
         }
         if(scopeSelectedChannel){
           configFromScope.channel = scopeSelectedChannel;
