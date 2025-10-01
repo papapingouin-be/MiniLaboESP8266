@@ -149,25 +149,6 @@
       padding:10px 12px;
       vertical-align:top;
     }
-    .func-param-stack{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      align-items:center;
-      justify-content:flex-start;
-      padding:4px 0;
-    }
-    .func-param-stack .func-param-btn{
-      width:100%;
-      height:100%;
-      min-width:0;
-      min-height:0;
-      border-radius:12px;
-      box-shadow: inset 0 0 0 1px rgba(45,65,92,.55), 0 6px 14px rgba(0,0,0,.35);
-      cursor:default;
-      pointer-events:none;
-    }
-    .func-param-stack .func-param-btn .symbol{font-size:18px}
     .func-meta-cell{
       text-align:center;
       background:linear-gradient(160deg, rgba(13,19,30,.9) 0%, rgba(12,18,29,.8) 100%);
@@ -198,14 +179,13 @@
     .func-wave-list{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
     .func-action-cell{background:linear-gradient(160deg, rgba(11,18,28,.92) 0%, rgba(8,12,21,.9) 100%)}
     .func-action-stack{display:flex; flex-direction:column; gap:12px; height:100%}
-    .func-action-stack .func-status{margin:0}
     .func-action-stack .func-hint{margin-top:auto}
     @media (max-width: 980px){
       #card-func .content{padding:12px}
         .func-layout{border-spacing:4px}
         .func-layout td{padding:8px 10px}
-        .func-param-stack .func-param-btn{padding:10px}
-        .func-param-stack .func-param-btn .symbol{font-size:16px}
+        .func-param-btn{padding:8px 12px; min-width:68px; min-height:44px}
+        .func-param-btn .symbol{font-size:18px}
     }
     .func-wave-btn{
       border:none;
@@ -299,15 +279,15 @@
       position:relative;
       border:none;
       background:linear-gradient(150deg, rgba(16,23,35,.85) 0%, rgba(10,15,24,1) 100%);
-      padding:12px;
-      border-radius:50%;
+      padding:10px 16px;
+      border-radius:12px;
       cursor:pointer;
       color:#c9d7f1;
       display:flex;
       align-items:center;
       justify-content:center;
-      width:56px;
-      height:56px;
+      min-width:76px;
+      min-height:48px;
       box-shadow: inset 0 0 0 1px rgba(45,65,92,.55), 0 10px 24px rgba(0,0,0,.4);
       transition:transform .2s ease, box-shadow .2s ease, background .2s ease;
     }
@@ -343,20 +323,11 @@
     }
     .func-param-btn.active .symbol{color:#0b1220}
     .func-param-btn:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:4px}
-    .func-status{
-      font-size:13px;
-      color:#9aa6bb;
-      background:rgba(10,16,25,.85);
-      border-radius:10px;
-      padding:10px 14px;
-      border:1px solid rgba(30,45,68,.45);
-      box-shadow: inset 0 0 0 1px rgba(18,28,44,.45);
-    }
     .func-summary{
       display:flex;
       flex-direction:column;
       align-items:flex-start;
-      gap:8px;
+      gap:6px;
       font-size:12px;
       color:#d0def6;
       min-height:48px;
@@ -368,11 +339,10 @@
       display:flex;
       flex-wrap:wrap;
       align-items:baseline;
-      gap:6px;
+      gap:4px;
     }
-    .func-summary-item.current .func-summary-label{color:#58e4ff}
-    .func-summary-label{font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#9aa6bb}
-    .func-summary-value{font-size:14px; letter-spacing:.04em; color:#e4f1ff}
+    .func-summary-item.current .func-summary-value{color:#58e4ff}
+    .func-summary-value{font-size:14px; letter-spacing:.04em; color:#e4f1ff; font-weight:600}
     .func-summary-value .unit{font-size:11px; margin-left:3px; letter-spacing:.12em; text-transform:uppercase; color:#7fbfff}
     .func-summary-secondary{font-size:11px; color:#7a8aa6; opacity:.9}
     .func-summary-empty{opacity:.7; font-style:italic}
@@ -747,7 +717,6 @@
                 </td>
                 <td class="func-action-cell">
                   <div class="func-action-stack">
-                    <div class="func-status">Prêt.</div>
                     <button class="btn primary" id="func-apply">Lancer la sortie</button>
                     <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
                   </div>
@@ -1329,7 +1298,6 @@
     const funcPlusBtn = $('#func-plus');
     const funcSummary = $('#func-summary');
     const funcHint = $('#func-hint');
-    const funcStatus = document.querySelector('#card-func .func-status');
     const funcTargetPill = $('#func-target-pill');
 
     const FUNC_WAVE_CATALOG = {
@@ -1633,9 +1601,6 @@
         const item = document.createElement('div');
         item.className = 'func-summary-item' + (param === funcState.currentParam ? ' current' : '');
         item.setAttribute('role','listitem');
-        const label = document.createElement('span');
-        label.className = 'func-summary-label';
-        label.textContent = def.label || param;
         const value = document.createElement('span');
         value.className = 'func-summary-value';
         value.textContent = formatted.main;
@@ -1645,7 +1610,16 @@
           unit.textContent = formatted.unit;
           value.appendChild(unit);
         }
-        item.append(label, value);
+        const labelText = def.label || param;
+        const mainText = formatted.unit ? `${formatted.main} ${formatted.unit}` : formatted.main;
+        let description = `${labelText}: ${mainText}`;
+        if(formatted.secondary){
+          description += ` (${formatted.secondary})`;
+        }
+        item.setAttribute('title', description);
+        item.setAttribute('aria-label', description);
+        item.dataset.param = param;
+        item.append(value);
         if(formatted.secondary){
           const secondary = document.createElement('span');
           secondary.className = 'func-summary-secondary';
@@ -1900,7 +1874,6 @@
         funcTargetSelect.value = '';
       }
       setFuncTarget(funcTargetSelect.value);
-      if(funcStatus) funcStatus.textContent = funcOutputs.length ? 'Profil chargé, prêt à générer.' : 'Aucune sortie disponible.';
     }
     async function applyFunc(){
       const target = funcTargetSelect ? funcTargetSelect.value : funcState.target;
@@ -1922,11 +1895,9 @@
           ok = await r.json().catch(()=>({}));
         }
         const success = r.ok && ok && (ok.ok === true || ok.success === true || ok.status === 'ok');
-        if(funcStatus) funcStatus.textContent = success ? 'Paramètres appliqués.' : 'Erreur d’application.';
         if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
       }catch(e){
         console.warn(e);
-        if(funcStatus) funcStatus.textContent = 'Erreur réseau.';
         if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
       }
     }
