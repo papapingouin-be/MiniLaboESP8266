@@ -247,12 +247,6 @@
     #scope-display .reference-line{stroke:#ff6b6b; stroke-width:1.2; stroke-dasharray:6 4}
     #scope-display .reference-label{fill:#9fb5c9; font-size:12px; font-family:inherit}
     #scope-display .scope-legend text{fill:#9fb5c9; font-size:13px; font-family:inherit}
-    .scope-popups{position:absolute; inset:0; pointer-events:none}
-    .scope-popup{position:absolute; pointer-events:auto}
-    .scope-popup.info-label{background:rgba(10,18,28,.85); border-radius:999px; padding:4px 10px; font-size:11px; color:#9fb5c9; border:1px solid rgba(60,97,132,.5); box-shadow:0 6px 18px rgba(0,0,0,.35)}
-    #scope-ref-popup{top:14px; left:18px}
-    #scope-scale-popup{bottom:18px; left:18px}
-    #scope-zero-popup{top:50%; left:18px; transform:translateY(-50%)}
     .scope-controls{
       flex:0 0 200px;
       border-left:1px solid #162235;
@@ -311,7 +305,7 @@
     .scope-modal h3{margin:0; font-size:16px; font-weight:600; text-align:left}
     .scope-modal form{display:flex; flex-direction:column; gap:16px}
     .scope-modal label{display:flex; flex-direction:column; gap:6px; font-size:13px; color:#b3c0d1; text-transform:uppercase; letter-spacing:.08em}
-    .scope-modal select, .scope-modal input[type="color"]{
+    .scope-modal select, .scope-modal input[type="color"], .scope-modal input[type="number"]{
       width:100%;
       padding:10px;
       border-radius:8px;
@@ -488,11 +482,6 @@
                     </g>
                   </svg>
                 </div>
-                <div class="scope-popups">
-                  <div class="scope-popup info-label" id="scope-ref-popup" data-tooltip="0 V (réf. lecture)" tabindex="0">Réf 0 V <span class="info-icon" aria-hidden="true">i</span></div>
-                  <div class="scope-popup info-label" id="scope-zero-popup" data-tooltip="Ligne 0 V, utilisez l’offset pour centrer le signal." tabindex="0">0 V <span class="info-icon" aria-hidden="true">i</span></div>
-                  <div class="scope-popup info-label" id="scope-scale-popup" data-tooltip="—" tabindex="0">Échelle <span class="info-icon" aria-hidden="true">i</span></div>
-                </div>
               </div>
               <div class="scope-controls">
                 <div class="scope-control">
@@ -545,6 +534,10 @@
         <select id="scope-trace-channel" required></select>
         <label for="scope-trace-color">Couleur</label>
         <input type="color" id="scope-trace-color" value="#64ffda" />
+        <label for="scope-trace-offset-x">Offset horizontal (div)</label>
+        <input type="number" id="scope-trace-offset-x" value="0" min="-5" max="5" step="0.1" />
+        <label for="scope-trace-offset-y">Offset vertical (div)</label>
+        <input type="number" id="scope-trace-offset-y" value="0" min="-5" max="5" step="0.1" />
         <div class="scope-modal-actions">
           <button type="button" class="btn" id="scope-trace-cancel">Annuler</button>
           <button type="submit" class="btn primary">Valider</button>
@@ -1063,10 +1056,9 @@
     /* --------- SCOPE (aperçu 1 canal) --------- */
     const scopeMeta = $('#scope-meta');
     const scopeTraceInfo = $('#scope-trace-info');
-    const scopeScalePopup = $('#scope-scale-popup');
-    const scopeRefPopup = $('#scope-ref-popup');
     const scopeTimebaseSelect = $('#scope-timebase-select');
     const scopeVoltSelect = $('#scope-volt-select');
+    const scopeVoltStatus = $('#scope-volt-status');
     const scopeTimebaseStatus = $('#scope-timebase-status');
     const scopeTraceStatus = $('#scope-trace-status');
     const scopeTimebasePill = $('#scope-timebase');
@@ -1077,12 +1069,17 @@
     const scopeTraceForm = $('#scope-trace-form');
     const scopeTraceChannelSelect = $('#scope-trace-channel');
     const scopeTraceColor = $('#scope-trace-color');
+    const scopeTraceOffsetX = $('#scope-trace-offset-x');
+    const scopeTraceOffsetY = $('#scope-trace-offset-y');
     const scopeTraceOpen = $('#scope-trace-open');
     const scopeTraceCancel = $('#scope-trace-cancel');
+    const scopeChannelBadge = $('#scope-chan');
     const scopeVoltsPerDivValues = [0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10];
     const scopeTimebaseValues = [0.05,0.1,0.2,0.5,1,2,5,10,20,50,100,200,500,1000,2000];
     const scopeColorPalette = ['#64ffda','#ffd74d','#3dff70','#ff5f85','#00d2ff','#b19cff'];
     const scopeGridSize = {width:500, height:500};
+    const scopeDivisions = {horizontal:10, vertical:8};
+    const scopeOffsetLimits = {horizontal:5, vertical:5};
 
     let scopeSelectedChannel = null;
     let scopeChannelColors = {};
@@ -1093,6 +1090,7 @@
     let scopeNextScopeApiRetry = 0;
     let scopeFallbackCache = null;
     let scopeApiUnavailable = false;
+    let scopeChannelOffsets = {};
 
     function formatVolt(value, suffix=''){
       if(value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -1156,7 +1154,6 @@
     function updateVoltDisplay(v){
       const label = formatVoltPerDiv(v);
       if(scopeVoltageLabel){ scopeVoltageLabel.textContent = label; }
-      if(scopeScalePopup){ scopeScalePopup.setAttribute('data-tooltip', label); }
     }
 
     function findClosestIndex(values, target){
@@ -1183,7 +1180,20 @@
       return parseFloat(scopeVoltSelect.value);
     }
 
-    function plot(samples, color, voltsPerDiv){
+    function getChannelOffsets(channel){
+      if(!channel) return {horizontal:0, vertical:0};
+      if(!scopeChannelOffsets[channel]){
+        scopeChannelOffsets[channel] = {horizontal:0, vertical:0};
+      }
+      return scopeChannelOffsets[channel];
+    }
+
+    function clampOffset(value, limit){
+      if(typeof value !== 'number' || Number.isNaN(value)) return 0;
+      return Math.min(Math.max(value, -limit), limit);
+    }
+
+    function plot(samples, color, voltsPerDiv, offsets){
       if(!scopeTracePath){ return null; }
       if(!samples || samples.length < 2){
         scopeTracePath.setAttribute('d','');
@@ -1191,27 +1201,31 @@
       }
       const width = scopeGridSize.width;
       const height = scopeGridSize.height;
-      const verticalDivs = 8;
-      const verticalPixelsPerDiv = height / verticalDivs;
+      const verticalPixelsPerDiv = height / scopeDivisions.vertical;
+      const horizontalPixelsPerDiv = width / scopeDivisions.horizontal;
       const clamp = (val, min, max)=>Math.min(Math.max(val, min), max);
       const len = samples.length;
       let min = samples[0];
       let max = samples[0];
       let sum = 0;
       let d = '';
+      const horizontalOffset = offsets ? clampOffset(offsets.horizontal || 0, scopeOffsetLimits.horizontal) : 0;
+      const verticalOffset = offsets ? clampOffset(offsets.vertical || 0, scopeOffsetLimits.vertical) : 0;
+      const xShift = horizontalOffset * horizontalPixelsPerDiv;
+      const yShift = verticalOffset * verticalPixelsPerDiv;
       for(let i=0;i<len;i++){
         const v = samples[i];
         if(v < min) min = v;
         if(v > max) max = v;
         sum += v;
-        const x = (i/(len-1)) * width;
-        const y = height/2 - (v/voltsPerDiv) * verticalPixelsPerDiv;
+        const x = (i/(len-1)) * width + xShift;
+        const y = height/2 - (v/voltsPerDiv) * verticalPixelsPerDiv - yShift;
         const yClamped = clamp(y, 0, height);
         d += `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${yClamped.toFixed(2)} `;
       }
       scopeTracePath.setAttribute('d', d.trim());
       scopeTracePath.setAttribute('stroke', color || '#64ffda');
-      return {min, max, mean: sum/len, voltsPerDiv};
+      return {min, max, mean: sum/len, voltsPerDiv, offsets: {horizontal: horizontalOffset, vertical: verticalOffset}};
     }
 
     function updateScopeDetails(meta, count){
@@ -1231,20 +1245,11 @@
 
       const traceLines = meta ? [
         `Vpp : ${formatVolt(meta.max - meta.min)}`,
-        meta.voltsPerDiv ? `Échelle : ${formatVolt(meta.voltsPerDiv, '/div')}` : null
+        meta.voltsPerDiv ? `Échelle : ${formatVolt(meta.voltsPerDiv, '/div')}` : null,
+        meta.offsets ? `Offset H : ${meta.offsets.horizontal.toFixed(1)} div` : null,
+        meta.offsets ? `Offset V : ${meta.offsets.vertical.toFixed(1)} div` : null
       ].filter(Boolean).join('\n') : '—';
       if(scopeTraceInfo){ scopeTraceInfo.setAttribute('data-tooltip', traceLines || '—'); }
-
-      if(scopeScalePopup){
-        if(meta && meta.voltsPerDiv){
-          scopeScalePopup.setAttribute('data-tooltip', `1 div ≈ ${formatVolt(meta.voltsPerDiv)}`);
-        }else{
-          scopeScalePopup.setAttribute('data-tooltip', formatVoltPerDiv(getCurrentVoltPerDiv()));
-        }
-      }
-      if(scopeRefPopup){
-        scopeRefPopup.setAttribute('data-tooltip', '0 V (réf. lecture)\nLigne rouge pointillée = niveau de référence.');
-      }
     }
 
     async function applyScopeTimebase(ms){
@@ -1272,6 +1277,41 @@
       }
     }
 
+    async function applyScopeVoltPerDiv(volts){
+      if(!scopeVoltSelect) return;
+      updateVoltDisplay(volts);
+      if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Envoi…'; }
+      try{
+        const r = await j('/api/scope/volt',{method:'POST', body: JSON.stringify({volts_per_div: volts})});
+        if(!r.ok){
+          if(r.status === 404){
+            scopeApiUnavailable = true;
+            scopeNextScopeApiRetry = Number.POSITIVE_INFINITY;
+            if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Réglage non supporté.'; }
+            setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 2500);
+            return;
+          }
+          throw new Error('bad');
+        }
+        if(scopeVoltStatus){
+          scopeVoltStatus.textContent = 'Synchronisé';
+          setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 1500);
+        }
+      }catch(err){
+        console.warn(err);
+        if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Erreur de réglage.'; }
+        setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 2000);
+      }
+    }
+
+    function refreshScopeChannelBadge(){
+      if(!scopeChannelBadge) return;
+      const channel = scopeSelectedChannel || '—';
+      scopeChannelBadge.textContent = channel;
+      const color = scopeSelectedChannel ? (scopeChannelColors[scopeSelectedChannel] || scopeColorPalette[0]) : '';
+      scopeChannelBadge.style.color = color || 'var(--text)';
+    }
+
     function renderScope(){
       const voltsPerDiv = getCurrentVoltPerDiv();
       updateVoltDisplay(voltsPerDiv);
@@ -1281,7 +1321,8 @@
         return;
       }
       const color = scopeChannelColors[scopeSelectedChannel] || scopeColorPalette[0];
-      const meta = plot(scopeLatestSamples, color, voltsPerDiv);
+      const offsets = getChannelOffsets(scopeSelectedChannel);
+      const meta = plot(scopeLatestSamples, color, voltsPerDiv, offsets);
       updateScopeDetails(meta, scopeLatestSamples ? scopeLatestSamples.length : 0);
     }
 
@@ -1300,6 +1341,9 @@
         if(!scopeChannelColors[name]){
           scopeChannelColors[name] = scopeColorPalette[idx % scopeColorPalette.length];
         }
+        if(!scopeChannelOffsets[name]){
+          scopeChannelOffsets[name] = {horizontal:0, vertical:0};
+        }
       });
       if(!channels.includes(previouslySelected)){
         scopeSelectedChannel = channels[0] || null;
@@ -1307,6 +1351,7 @@
       if(scopeTraceColor && scopeSelectedChannel){
         scopeTraceColor.value = scopeChannelColors[scopeSelectedChannel];
       }
+      refreshScopeChannelBadge();
     }
 
     function openTraceModal(){
@@ -1318,6 +1363,11 @@
       }
       if(scopeTraceColor && scopeSelectedChannel){
         scopeTraceColor.value = scopeChannelColors[scopeSelectedChannel] || scopeTraceColor.value;
+      }
+      if(scopeTraceOffsetX && scopeTraceOffsetY){
+        const offsets = getChannelOffsets(scopeSelectedChannel);
+        scopeTraceOffsetX.value = offsets.horizontal.toFixed(1);
+        scopeTraceOffsetY.value = offsets.vertical.toFixed(1);
       }
       const targetFocus = scopeTraceChannelSelect || scopeTraceModal.querySelector('input, select, button');
       if(targetFocus){
@@ -1355,10 +1405,19 @@
         }
       });
     }
+    function updateModalOffsetsForChannel(channel){
+      if(scopeTraceOffsetX && scopeTraceOffsetY){
+        const offsets = getChannelOffsets(channel);
+        scopeTraceOffsetX.value = offsets.horizontal.toFixed(1);
+        scopeTraceOffsetY.value = offsets.vertical.toFixed(1);
+      }
+    }
+
     if(scopeTraceChannelSelect && scopeTraceColor){
       scopeTraceChannelSelect.addEventListener('change', ()=>{
         const channel = scopeTraceChannelSelect.value;
         scopeTraceColor.value = scopeChannelColors[channel] || scopeColorPalette[0];
+        updateModalOffsetsForChannel(channel);
       });
     }
     document.addEventListener('keydown', (ev)=>{
@@ -1371,11 +1430,16 @@
         ev.preventDefault();
         const channel = scopeTraceChannelSelect ? scopeTraceChannelSelect.value : null;
         const color = scopeTraceColor ? scopeTraceColor.value : '#64ffda';
+        const offsets = {
+          horizontal: scopeTraceOffsetX ? clampOffset(parseFloat(scopeTraceOffsetX.value), scopeOffsetLimits.horizontal) : 0,
+          vertical: scopeTraceOffsetY ? clampOffset(parseFloat(scopeTraceOffsetY.value), scopeOffsetLimits.vertical) : 0
+        };
         if(channel){
           scopeSelectedChannel = channel;
           scopeChannelColors[channel] = color;
+          scopeChannelOffsets[channel] = offsets;
           scopeLatestSamples = scopeChannelsData[channel] || [];
-          $('#scope-chan').textContent = channel;
+          refreshScopeChannelBadge();
           renderScope();
           if(scopeTraceStatus){
             scopeTraceStatus.textContent = `Trace sur ${channel}`;
@@ -1390,6 +1454,35 @@
         if(scopeTraceChannelSelect){
           const channel = scopeTraceChannelSelect.value;
           scopeChannelColors[channel] = scopeTraceColor.value;
+          if(scopeSelectedChannel === channel){
+            refreshScopeChannelBadge();
+            renderScope();
+          }
+        }
+      });
+    }
+
+    if(scopeTraceOffsetX){
+      scopeTraceOffsetX.addEventListener('input', ()=>{
+        if(!scopeTraceChannelSelect) return;
+        const channel = scopeTraceChannelSelect.value;
+        const offsets = getChannelOffsets(channel);
+        offsets.horizontal = clampOffset(parseFloat(scopeTraceOffsetX.value), scopeOffsetLimits.horizontal);
+        scopeTraceOffsetX.value = offsets.horizontal.toFixed(1);
+        if(scopeSelectedChannel === channel){
+          renderScope();
+        }
+      });
+    }
+    if(scopeTraceOffsetY){
+      scopeTraceOffsetY.addEventListener('input', ()=>{
+        if(!scopeTraceChannelSelect) return;
+        const channel = scopeTraceChannelSelect.value;
+        const offsets = getChannelOffsets(channel);
+        offsets.vertical = clampOffset(parseFloat(scopeTraceOffsetY.value), scopeOffsetLimits.vertical);
+        scopeTraceOffsetY.value = offsets.vertical.toFixed(1);
+        if(scopeSelectedChannel === channel){
+          renderScope();
         }
       });
     }
@@ -1406,7 +1499,8 @@
 
     if(scopeVoltSelect){
       scopeVoltSelect.addEventListener('change', ()=>{
-        updateVoltDisplay(getCurrentVoltPerDiv());
+        const volts = getCurrentVoltPerDiv();
+        applyScopeVoltPerDiv(volts);
         renderScope();
       });
       scopeVoltSelect.value = String(scopeVoltsPerDivValues[5]);
@@ -1464,12 +1558,16 @@
       scopeLastScopeData = Object.assign({}, data, {channels: normalizedChannels});
       scopeChannelsData = scopeLastScopeData.channels;
       const chNames = Object.keys(scopeChannelsData);
+      scopeChannelOffsets = chNames.reduce((acc, name)=>{
+        acc[name] = scopeChannelOffsets[name] || {horizontal:0, vertical:0};
+        return acc;
+      }, {});
       if(chNames.length){
         setScopeChannelList(chNames);
         if(!scopeSelectedChannel){
           scopeSelectedChannel = chNames[0];
         }
-        $('#scope-chan').textContent = scopeSelectedChannel || '—';
+        refreshScopeChannelBadge();
         scopeLatestSamples = scopeChannelsData[scopeSelectedChannel] || [];
         if(scopeTraceColor && scopeSelectedChannel){
           scopeTraceColor.value = scopeChannelColors[scopeSelectedChannel];
@@ -1477,7 +1575,7 @@
       }else{
         scopeSelectedChannel = null;
         scopeLatestSamples = [];
-        $('#scope-chan').textContent = '—';
+        refreshScopeChannelBadge();
       }
 
       const timebase = typeof data.timebase_ms_per_div === 'number' ? data.timebase_ms_per_div : null;
@@ -1548,7 +1646,8 @@
           scopeChannelsData = {};
           scopeLastScopeData = null;
           scopeUsingFallback = false;
-          $('#scope-chan').textContent = '—';
+          scopeChannelOffsets = {};
+          refreshScopeChannelBadge();
           updateScopeDetails(null, 0);
           updateTimebaseDisplay(null);
           return;
