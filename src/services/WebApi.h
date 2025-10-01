@@ -44,7 +44,8 @@ private:
   void handlePutConfig();
   void handleDmm();
   void handleScope();
-  void handleFuncGen();
+  void handleFuncGenGet();
+  void handleFuncGenPost();
   void handleLogsTail();
   void handleWifiScan();
   void handleIoHardware();

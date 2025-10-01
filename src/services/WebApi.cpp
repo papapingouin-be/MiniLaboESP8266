@@ -108,9 +108,14 @@ void WebApi::begin() {
         handleScope();
       });
   m_server.on(
+      "/api/funcgen", HTTP_GET,
+      [this]() {
+        handleFuncGenGet();
+      });
+  m_server.on(
       "/api/funcgen", HTTP_POST,
       [this]() {
-        handleFuncGen();
+        handleFuncGenPost();
       });
   m_server.on(
       "/api/logs/tail", HTTP_GET,
@@ -610,7 +615,34 @@ void WebApi::handleScope() {
   m_server.send(200, "application/json", response);
 }
 
-void WebApi::handleFuncGen() {
+void WebApi::handleFuncGenGet() {
+  StaticJsonDocument<256> resp;
+  JsonDocument &cfg = m_config->getConfig("funcgen");
+  JsonObjectConst obj = cfg.is<JsonObject>() ? cfg.as<JsonObjectConst>()
+                                             : JsonObjectConst();
+
+  resp["type"] = obj["type"] | "sine";
+  resp["freq"] = obj["freq"] | 0.0f;
+  resp["amp_pct"] = obj["amp_pct"] | 0;
+  resp["offset_pct"] = obj["offset_pct"] | 50;
+  resp["enabled"] = obj["enabled"] | false;
+
+  if (obj.containsKey("duty_pct")) {
+    resp["duty_pct"] = obj["duty_pct"];
+  }
+  if (obj.containsKey("phase_deg")) {
+    resp["phase_deg"] = obj["phase_deg"];
+  }
+  if (obj.containsKey("target")) {
+    resp["target"] = obj["target"];
+  }
+
+  String body;
+  serializeJson(resp, body);
+  m_server.send(200, "application/json", body);
+}
+
+void WebApi::handleFuncGenPost() {
   // Only accept JSON bodies
   String body = m_server.arg("plain");
   if (body.length() == 0) {
