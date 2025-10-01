@@ -1,6 +1,9 @@
 {
-  "enabled": false,
+  "enabled": true,
   "channel": "CH1",
+  "io": "A0",
+  "label": "CH1",
+  "display": "CH1 — A0",
   "timebase": 10,
   "vdiv": 1.0,
   "offset": 0.0

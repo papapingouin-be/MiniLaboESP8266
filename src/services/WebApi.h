@@ -43,6 +43,7 @@ private:
   void handleGetConfig();
   void handlePutConfig();
   void handleDmm();
+  void handleScope();
   void handleFuncGen();
   void handleLogsTail();
   void handleWifiScan();
