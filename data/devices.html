@@ -558,6 +558,28 @@
     const $ = (q)=>document.querySelector(q);
     const j = (url,opts={})=>fetch(url,Object.assign({headers:{'Content-Type':'application/json'}},opts));
 
+    let scopeChannelMetadata = {};
+
+    function mergeScopeChannelMeta(channel, info = {}){
+      if(!channel) return;
+      if(!scopeChannelMetadata[channel]){
+        scopeChannelMetadata[channel] = {label: null, io: null, display: null, description: null};
+      }
+      const target = scopeChannelMetadata[channel];
+      if(info.label && (target.label === null || target.label === channel)){
+        target.label = info.label;
+      }
+      if(info.display && !target.display){
+        target.display = info.display;
+      }
+      if(info.io && (target.io === null || target.io === channel)){
+        target.io = info.io;
+      }
+      if(info.description && !target.description){
+        target.description = info.description;
+      }
+    }
+
     /* --------- DMM --------- */
     let dmmHold = false, dmmMode = 'digits';
     const dmmState = {
@@ -790,11 +812,54 @@
         unit: ch.unit || ''
       }));
     }
+    function registerScopeChannelMetaFromDmm(metaList){
+      if(!Array.isArray(metaList) || !metaList.length) return;
+      let changed = false;
+      metaList.forEach((meta)=>{
+        if(!meta) return;
+        const rawLabel = typeof meta.label === 'string' ? meta.label.trim() : '';
+        const rawChannel = typeof meta.channel === 'string' ? meta.channel.trim() : '';
+        const baseChannel = rawChannel || rawLabel || null;
+        const io = typeof meta.io === 'string' ? meta.io.trim() : '';
+        const display = typeof meta.display === 'string' ? meta.display.trim() : '';
+        const description = typeof meta.description === 'string' ? meta.description : '';
+        if(baseChannel){
+          const before = scopeChannelMetadata[baseChannel] ? Object.assign({}, scopeChannelMetadata[baseChannel]) : null;
+          mergeScopeChannelMeta(baseChannel, {
+            label: rawLabel || baseChannel,
+            io: io || null,
+            display: display || null,
+            description: description || null
+          });
+          const after = scopeChannelMetadata[baseChannel];
+          if(!before || before.label !== after.label || before.io !== after.io || before.display !== after.display || before.description !== after.description){
+            changed = true;
+          }
+        }
+        if(io){
+          const beforeIo = scopeChannelMetadata[io] ? Object.assign({}, scopeChannelMetadata[io]) : null;
+          mergeScopeChannelMeta(io, {
+            label: rawLabel || baseChannel || io,
+            io,
+            display: display || null,
+            description: description || null
+          });
+          const afterIo = scopeChannelMetadata[io];
+          if(!beforeIo || beforeIo.label !== afterIo.label || beforeIo.io !== afterIo.io || beforeIo.display !== afterIo.display || beforeIo.description !== afterIo.description){
+            changed = true;
+          }
+        }
+      });
+      if(changed){
+        refreshScopeChannelListDisplay();
+      }
+    }
     function ensureDmmOptions(snapshot){
       const sel = $('#dmm-select');
       if(!sel) return;
       const previous = sel.value;
       const metaList = dmmState.config.length ? dmmState.config : buildFallbackMeta(snapshot||[]);
+      registerScopeChannelMetaFromDmm(metaList);
       if(!metaList.length){
         sel.innerHTML='';
         updateDmmHeader(null);
@@ -1105,6 +1170,152 @@
     let scopeManualVoltPerDiv = null;
     let scopeManualTimebase = null;
 
+    function getScopeChannelMeta(channel){
+      if(!channel) return null;
+      return scopeChannelMetadata[channel] || null;
+    }
+
+    function getScopeChannelBaseLabel(channel){
+      const meta = getScopeChannelMeta(channel);
+      if(meta && typeof meta.label === 'string' && meta.label){
+        return meta.label;
+      }
+      return channel || '—';
+    }
+
+    function formatScopeChannelOptionLabel(channel){
+      if(!channel) return '—';
+      const meta = getScopeChannelMeta(channel);
+      if(!meta) return channel;
+      if(typeof meta.display === 'string' && meta.display){
+        return meta.display;
+      }
+      const base = meta.label || channel;
+      const io = meta.io && meta.io !== base ? meta.io : null;
+      return io ? `${base} — ${io}` : base;
+    }
+
+    function buildScopeChannelTooltip(channel){
+      const meta = getScopeChannelMeta(channel);
+      if(!meta) return '';
+      const parts = [];
+      if(meta.io) parts.push(`Entrée : ${meta.io}`);
+      if(meta.description) parts.push(meta.description);
+      return parts.join(' • ');
+    }
+
+    function refreshScopeChannelListDisplay(){
+      if(!scopeTraceChannelSelect) return;
+      const channels = Object.keys(scopeChannelsData || {});
+      if(!channels.length) return;
+      setScopeChannelList(channels);
+      refreshScopeChannelBadge();
+    }
+
+    function extractScopeChannelMetaFromRaw(entry, channel){
+      if(!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+      const info = {};
+      const labelCandidates = [entry.display, entry.label, entry.name, entry.title, entry.caption];
+      const ioCandidates = [entry.io, entry.input, entry.source, entry.pin, entry.id];
+      const descriptionCandidates = [entry.description, entry.details, entry.note];
+      labelCandidates.forEach((candidate)=>{
+        if(!info.label && typeof candidate === 'string' && candidate.trim()){
+          info.label = candidate.trim();
+        }
+      });
+      ioCandidates.forEach((candidate)=>{
+        if(!info.io && typeof candidate === 'string' && candidate.trim()){
+          const value = candidate.trim();
+          if(!channel || value !== channel){
+            info.io = value;
+          }
+        }
+      });
+      descriptionCandidates.forEach((candidate)=>{
+        if(!info.description && typeof candidate === 'string' && candidate.trim()){
+          info.description = candidate.trim();
+        }
+      });
+      if(typeof entry.display === 'string' && entry.display.trim()){
+        info.display = entry.display.trim();
+      }
+      const nestedSources = [entry.meta, entry.info, entry.details_meta];
+      for(const nested of nestedSources){
+        if(nested && typeof nested === 'object'){
+          const nestedInfo = extractScopeChannelMetaFromRaw(nested, channel);
+          if(nestedInfo){
+            if(nestedInfo.label && !info.label) info.label = nestedInfo.label;
+            if(nestedInfo.io && !info.io) info.io = nestedInfo.io;
+            if(nestedInfo.display && !info.display) info.display = nestedInfo.display;
+            if(nestedInfo.description && !info.description) info.description = nestedInfo.description;
+          }
+        }
+      }
+      return (info.label || info.io || info.display || info.description) ? info : null;
+    }
+
+    function updateScopeChannelMetadataFromConfig(cfg){
+      if(!cfg || typeof cfg !== 'object') return;
+      let changed = false;
+      const register = (channel, meta)=>{
+        if(!channel) return;
+        const before = scopeChannelMetadata[channel] ? Object.assign({}, scopeChannelMetadata[channel]) : null;
+        mergeScopeChannelMeta(channel, meta || {});
+        const after = scopeChannelMetadata[channel];
+        if(!before || before.label !== after.label || before.io !== after.io || before.display !== after.display || before.description !== after.description){
+          changed = true;
+        }
+      };
+      if(Array.isArray(cfg.channels)){
+        cfg.channels.forEach((entry, idx)=>{
+          if(entry && typeof entry === 'object'){
+            const channel = typeof entry.channel === 'string' && entry.channel.trim()
+              ? entry.channel.trim()
+              : (typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : `CH${idx+1}`);
+            const meta = extractScopeChannelMetaFromRaw(entry, channel) || {};
+            if(!meta.io && typeof entry.io === 'string' && entry.io.trim()){
+              meta.io = entry.io.trim();
+            }
+            register(channel, meta);
+          }else if(typeof entry === 'string' && entry.trim()){
+            register(entry.trim(), {label: entry.trim()});
+          }
+        });
+      }
+      if(cfg.channel_map && typeof cfg.channel_map === 'object'){
+        Object.entries(cfg.channel_map).forEach(([channel, entry])=>{
+          if(typeof entry === 'string' && entry.trim()){
+            register(channel, {io: entry.trim()});
+          }else if(entry && typeof entry === 'object'){
+            const meta = extractScopeChannelMetaFromRaw(entry, channel) || {};
+            if(!meta.io && typeof entry.io === 'string' && entry.io.trim()){
+              meta.io = entry.io.trim();
+            }
+            register(channel, meta);
+          }
+        });
+      }
+      if(cfg.channel_meta && typeof cfg.channel_meta === 'object'){
+        Object.entries(cfg.channel_meta).forEach(([channel, entry])=>{
+          if(entry && typeof entry === 'object'){
+            const meta = extractScopeChannelMetaFromRaw(entry, channel) || {};
+            register(channel, meta);
+          }
+        });
+      }
+      if(typeof cfg.channel === 'string' && cfg.channel.trim()){
+        const singleMeta = {};
+        if(typeof cfg.io === 'string' && cfg.io.trim()) singleMeta.io = cfg.io.trim();
+        if(typeof cfg.input === 'string' && cfg.input.trim()) singleMeta.io = cfg.input.trim();
+        if(typeof cfg.label === 'string' && cfg.label.trim()) singleMeta.label = cfg.label.trim();
+        if(typeof cfg.display === 'string' && cfg.display.trim()) singleMeta.display = cfg.display.trim();
+        register(cfg.channel.trim(), singleMeta);
+      }
+      if(changed){
+        refreshScopeChannelListDisplay();
+      }
+    }
+
     function formatVolt(value, suffix=''){
       if(value === null || value === undefined || Number.isNaN(value)) return '—';
       const abs = Math.abs(value);
@@ -1189,6 +1400,9 @@
         }
         const cfg = await r.json();
         scopeConfigCache = Object.assign({}, cfg || {});
+        if(scopeConfigCache){
+          updateScopeChannelMetadataFromConfig(scopeConfigCache);
+        }
         return scopeConfigCache;
       }catch(err){
         console.warn(err);
@@ -1459,10 +1673,17 @@
 
     function refreshScopeChannelBadge(){
       if(!scopeChannelBadge) return;
-      const channel = scopeSelectedChannel || '—';
-      scopeChannelBadge.textContent = channel;
-      const color = scopeSelectedChannel ? (scopeChannelColors[scopeSelectedChannel] || scopeColorPalette[0]) : '';
+      const channel = scopeSelectedChannel;
+      const label = getScopeChannelBaseLabel(channel);
+      scopeChannelBadge.textContent = label;
+      const color = channel ? (scopeChannelColors[channel] || scopeColorPalette[0]) : '';
       scopeChannelBadge.style.color = color || 'var(--text)';
+      const tooltip = buildScopeChannelTooltip(channel);
+      if(tooltip){
+        scopeChannelBadge.setAttribute('title', tooltip);
+      }else{
+        scopeChannelBadge.removeAttribute('title');
+      }
     }
 
     function renderScope(){
@@ -1487,7 +1708,11 @@
       channels.forEach((name, idx)=>{
         const opt = document.createElement('option');
         opt.value = name;
-        opt.textContent = name;
+        opt.textContent = formatScopeChannelOptionLabel(name);
+        const optionTooltip = buildScopeChannelTooltip(name);
+        if(optionTooltip){
+          opt.title = optionTooltip;
+        }
         if(name === previouslySelected || (!previouslySelected && idx === 0)){
           opt.selected = true;
         }
@@ -1504,6 +1729,12 @@
       }
       if(scopeTraceColor && scopeSelectedChannel){
         scopeTraceColor.value = scopeChannelColors[scopeSelectedChannel];
+      }
+      const selectTooltip = buildScopeChannelTooltip(scopeSelectedChannel);
+      if(selectTooltip){
+        scopeTraceChannelSelect.title = selectTooltip;
+      }else{
+        scopeTraceChannelSelect.removeAttribute('title');
       }
       refreshScopeChannelBadge();
     }
@@ -1572,6 +1803,12 @@
         const channel = scopeTraceChannelSelect.value;
         scopeTraceColor.value = scopeChannelColors[channel] || scopeColorPalette[0];
         updateModalOffsetsForChannel(channel);
+        const tooltip = buildScopeChannelTooltip(channel);
+        if(tooltip){
+          scopeTraceChannelSelect.title = tooltip;
+        }else{
+          scopeTraceChannelSelect.removeAttribute('title');
+        }
       });
     }
     document.addEventListener('keydown', (ev)=>{
@@ -1595,8 +1832,17 @@
           scopeLatestSamples = scopeChannelsData[channel] || [];
           refreshScopeChannelBadge();
           renderScope();
+          const selectTooltip = buildScopeChannelTooltip(channel);
+          if(scopeTraceChannelSelect){
+            if(selectTooltip){
+              scopeTraceChannelSelect.title = selectTooltip;
+            }else{
+              scopeTraceChannelSelect.removeAttribute('title');
+            }
+          }
           if(scopeTraceStatus){
-            scopeTraceStatus.textContent = `Trace sur ${channel}`;
+            const label = formatScopeChannelOptionLabel(channel);
+            scopeTraceStatus.textContent = `Trace sur ${label}`;
             setTimeout(()=>{ if(scopeTraceStatus) scopeTraceStatus.textContent=''; }, 1800);
           }
         }
@@ -1664,30 +1910,94 @@
     async function loadScopeFallback(){
       try{
         if(scopeFallbackCache){
-          return Object.assign({}, scopeFallbackCache, {
-            channels: Object.fromEntries(Object.entries(scopeFallbackCache.channels).map(([name, samples])=>[name, Array.from(samples || [])]))
-          });
+          return {
+            channels: Object.fromEntries(Object.entries(scopeFallbackCache.channels).map(([name, entry])=>{
+              if(Array.isArray(entry)){
+                return [name, Array.from(entry)];
+              }
+              if(entry && typeof entry === 'object'){
+                const copy = Object.assign({}, entry);
+                if(Array.isArray(copy.samples)){
+                  copy.samples = Array.from(copy.samples);
+                }
+                return [name, copy];
+              }
+              return [name, entry];
+            })),
+            timebase_ms_per_div: scopeFallbackCache.timebase_ms_per_div,
+            volts_per_div: scopeFallbackCache.volts_per_div
+          };
         }
         const r = await fetch('scope.json', {cache: 'no-cache'});
         if(!r.ok) return null;
         const cfg = await r.json();
-        let channels = {};
-        if(cfg.channels && typeof cfg.channels === 'object'){
-          Object.entries(cfg.channels).forEach(([name, samples])=>{
-            channels[name] = Array.isArray(samples) ? samples : new Array(200).fill(0);
+        if(cfg && typeof cfg === 'object'){
+          updateScopeChannelMetadataFromConfig(cfg);
+        }
+        const channels = {};
+        const registerEntry = (name, entry)=>{
+          if(!name) return;
+          if(entry && typeof entry === 'object' && !Array.isArray(entry)){
+            const meta = extractScopeChannelMetaFromRaw(entry, name);
+            if(meta){
+              mergeScopeChannelMeta(name, meta);
+            }
+            const normalized = normalizeSamples(entry);
+            channels[name] = Object.assign({}, entry, {samples: normalized});
+          }else{
+            const normalized = normalizeSamples(entry);
+            channels[name] = normalized.length ? normalized : new Array(200).fill(0);
+          }
+        };
+        if(cfg && Array.isArray(cfg.channels)){
+          cfg.channels.forEach((entry, idx)=>{
+            const channelName = entry && typeof entry === 'object' && typeof entry.channel === 'string' && entry.channel.trim()
+              ? entry.channel.trim()
+              : (entry && typeof entry === 'object' && typeof entry.name === 'string' && entry.name.trim()
+                ? entry.name.trim()
+                : `CH${idx+1}`);
+            registerEntry(channelName, entry);
+          });
+        }else if(cfg && cfg.channels && typeof cfg.channels === 'object'){
+          Object.entries(cfg.channels).forEach(([name, entry])=>{
+            registerEntry(name, entry);
           });
         }else{
-          const channelName = cfg.channel || 'CH1';
-          const samples = Array.isArray(cfg.samples) ? cfg.samples : new Array(200).fill(0);
-          channels[channelName] = samples;
+          const channelName = cfg && typeof cfg === 'object' && typeof cfg.channel === 'string' && cfg.channel.trim()
+            ? cfg.channel.trim()
+            : 'CH1';
+          const fallbackMeta = extractScopeChannelMetaFromRaw(cfg, channelName);
+          if(fallbackMeta){
+            mergeScopeChannelMeta(channelName, fallbackMeta);
+          }
+          const normalized = normalizeSamples(cfg && typeof cfg === 'object' ? cfg.samples : cfg);
+          channels[channelName] = normalized.length ? normalized : new Array(200).fill(0);
         }
+        const timebaseFromCfg = cfg && typeof cfg === 'object'
+          ? (typeof cfg.timebase_ms_per_div === 'number' ? cfg.timebase_ms_per_div : (typeof cfg.timebase === 'number' ? cfg.timebase : null))
+          : null;
+        const voltsFromCfg = cfg && typeof cfg === 'object'
+          ? (typeof cfg.volts_per_div === 'number' ? cfg.volts_per_div : (typeof cfg.vdiv === 'number' ? cfg.vdiv : null))
+          : null;
         const result = {
           channels,
-          timebase_ms_per_div: typeof cfg.timebase_ms_per_div === 'number' ? cfg.timebase_ms_per_div : (typeof cfg.timebase === 'number' ? cfg.timebase : null),
-          volts_per_div: typeof cfg.volts_per_div === 'number' ? cfg.volts_per_div : (typeof cfg.vdiv === 'number' ? cfg.vdiv : null)
+          timebase_ms_per_div: timebaseFromCfg,
+          volts_per_div: voltsFromCfg,
         };
         scopeFallbackCache = {
-          channels: Object.fromEntries(Object.entries(channels).map(([name, samples])=>[name, Array.from(samples || [])])),
+          channels: Object.fromEntries(Object.entries(channels).map(([name, entry])=>{
+            if(Array.isArray(entry)){
+              return [name, Array.from(entry)];
+            }
+            if(entry && typeof entry === 'object'){
+              const copy = Object.assign({}, entry);
+              if(Array.isArray(copy.samples)){
+                copy.samples = Array.from(copy.samples);
+              }
+              return [name, copy];
+            }
+            return [name, entry];
+          })),
           timebase_ms_per_div: result.timebase_ms_per_div,
           volts_per_div: result.volts_per_div
         };
@@ -1706,6 +2016,10 @@
       const rawChannels = data.channels && typeof data.channels === 'object' ? data.channels : {};
       const normalizedChannels = {};
       Object.entries(rawChannels).forEach(([name, samples])=>{
+        const metaFromEntry = extractScopeChannelMetaFromRaw(samples, name);
+        if(metaFromEntry){
+          mergeScopeChannelMeta(name, metaFromEntry);
+        }
         normalizedChannels[name] = normalizeSamples(samples);
       });
       scopeLastScopeData = Object.assign({}, data, {channels: normalizedChannels});
