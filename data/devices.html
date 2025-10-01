@@ -685,15 +685,26 @@
             </colgroup>
             <tbody>
               <tr>
-                <td rowspan="4" colspan="1" valign="top">
-                  <div class="func-params" id="func-param-buttons"></div>
-                </td>
-                <td class="func-meta-cell">
+                <td class="func-meta-cell" colspan="3" valign="top">
                   <div class="func-summary empty" id="func-summary" aria-live="polite" role="list">
                     <span class="func-summary-item func-summary-empty" role="listitem">—</span>
                   </div>
                 </td>
-                <td class="func-output-cell" rowspan="2">
+              </tr>
+              <tr>
+                <td class="func-param-cell" rowspan="2" valign="top">
+                  <div class="func-params" id="func-param-buttons"></div>
+                </td>
+                <td class="func-display-cell" valign="top">
+                  <div class="func-display">
+                    <div class="func-main-value">
+                      <div class="func-value-label" id="func-value-label">Amplitude</div>
+                      <div class="func-value-main" id="func-value-main">00<span class="unit">%</span></div>
+                      <div class="func-value-secondary" id="func-value-secondary"></div>
+                    </div>
+                  </div>
+                </td>
+                <td class="func-output-cell" valign="top">
                   <div class="func-output-box">
                     <label for="func-target">Sortie</label>
                     <select id="func-target" class="select"></select>
@@ -710,24 +721,12 @@
                 </td>
               </tr>
               <tr>
-                <td class="func-display-cell" rowspan="2">
-                  <div class="func-display">
-                    <div class="func-main-value">
-                      <div class="func-value-label" id="func-value-label">Amplitude</div>
-                      <div class="func-value-main" id="func-value-main">00<span class="unit">%</span></div>
-                      <div class="func-value-secondary" id="func-value-secondary"></div>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-              <tr><!-- spacer row for rowspan alignment --></tr>
-              <tr>
-                <td class="func-wave-cell">
+                <td class="func-wave-cell" valign="top">
                   <div class="func-param-zone">
                     <div class="func-wave-list" id="func-wave-list" role="radiogroup" aria-label="Forme d’onde"></div>
                   </div>
                 </td>
-                <td class="func-action-cell">
+                <td class="func-action-cell" valign="top">
                   <div class="func-action-stack">
                     <button class="btn primary" id="func-apply">Lancer la sortie</button>
                     <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
