@@ -177,8 +177,34 @@
       padding:12px;
       border-radius:10px;
     }
-    .func-adjust-stack{display:flex; flex-direction:column; gap:8px; width:100%; height:100%}
-    .func-adjust-stack .func-digit-btn{min-width:0; width:100%; min-height:52px; flex:1 1 auto}
+    .func-adjust-stack{display:flex; flex-direction:column; gap:10px; width:100%; height:100%; align-items:stretch; justify-content:space-between}
+    .func-adjust-buttons{display:flex; flex-direction:column; gap:8px; width:100%; flex:1 1 auto}
+    .func-adjust-buttons .func-digit-btn{min-width:0; width:100%; min-height:52px; flex:1 1 auto}
+    .func-adjust-scale{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; align-items:center}
+    .func-scale-btn{
+      border:none;
+      background:linear-gradient(160deg, rgba(30,45,68,.85) 0%, rgba(16,24,38,.9) 100%);
+      color:#c8d5ee;
+      font-size:11px;
+      padding:6px 10px;
+      border-radius:10px;
+      box-shadow: inset 0 0 0 1px rgba(62,94,138,.35), 0 6px 14px rgba(0,0,0,.35);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      min-width:54px;
+      cursor:pointer;
+      transition:transform .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .func-scale-btn .arrow{font-size:9px; line-height:1; opacity:.8}
+    .func-scale-btn .func-scale-text{font-variant-numeric: tabular-nums; letter-spacing:.05em}
+    .func-scale-btn.active{
+      background:linear-gradient(150deg, rgba(80,220,255,.35) 0%, rgba(20,125,220,.55) 100%);
+      color:#051020;
+      box-shadow:0 10px 24px rgba(56,160,255,.28), inset 0 0 0 1px rgba(12,20,32,.55);
+    }
+    .func-scale-btn:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:3px}
     .func-param-zone{display:flex; flex-direction:column; gap:12px; align-items:center}
     .func-wave-cell{background:linear-gradient(160deg, rgba(12,18,30,.82) 0%, rgba(10,14,22,.9) 100%); padding:12px 10px}
     .func-wave-list{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
@@ -714,8 +740,11 @@
                   </div>
                   <div class="func-adjust-cell">
                     <div class="func-adjust-stack">
-                      <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur" title="Augmenter">+</button>
-                      <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur" title="Diminuer">−</button>
+                      <div class="func-adjust-scale" id="func-adjust-scale" role="radiogroup" aria-label="Sélection du pas"></div>
+                      <div class="func-adjust-buttons">
+                        <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur" title="Augmenter">+</button>
+                        <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur" title="Diminuer">−</button>
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -1307,6 +1336,7 @@
     const funcParamButtons = $('#func-param-buttons');
     const funcMinusBtn = $('#func-minus');
     const funcPlusBtn = $('#func-plus');
+    const funcAdjustScaleGroup = $('#func-adjust-scale');
     const funcSummary = $('#func-summary');
     const funcHint = $('#func-hint');
     const funcTargetPill = $('#func-target-pill');
@@ -1410,10 +1440,21 @@
         default: 50,
         min(ctx){ return ctx.profile?.ranges?.amp?.min ?? 0; },
         max(ctx){ return ctx.profile?.ranges?.amp?.max ?? 100; },
-        step(ctx){ return ctx.profile?.ranges?.amp?.step ?? 1; },
-        decimals(ctx){ return ctx.profile?.ranges?.amp?.decimals ?? 1; },
+        step(ctx){
+          const customStep = ctx.profile?.ranges?.amp?.step;
+          if(typeof customStep === 'number' && Number.isFinite(customStep)) return customStep;
+          const rawDecimals = ctx.profile?.ranges?.amp?.decimals;
+          const decimals = rawDecimals !== undefined ? Math.max(rawDecimals, 2) : 2;
+          const base = Math.pow(10, -decimals);
+          return Number(base.toFixed(decimals));
+        },
+        decimals(ctx){
+          const rawDecimals = ctx.profile?.ranges?.amp?.decimals;
+          return rawDecimals !== undefined ? Math.max(rawDecimals, 2) : 2;
+        },
         format(value, ctx){
-          const decimals = ctx.profile?.ranges?.amp?.decimals ?? 1;
+          const decimalsSetting = ctx.profile?.ranges?.amp?.decimals;
+          const decimals = decimalsSetting !== undefined ? Math.max(decimalsSetting, 2) : 2;
           const main = formatNumber(value, decimals);
           const range = ctx.range;
           let secondary = '';
@@ -1514,6 +1555,9 @@
     let funcOutputs = [];
     let funcCurrentOutput = null;
     let funcCurrentProfile = FUNC_TYPE_PROFILES.default;
+    let funcAdjustScales = [1];
+    let funcAdjustScaleIndex = 0;
+    let funcAdjustBaseStep = 1;
     const funcState = {
       target: '',
       type: '',
@@ -1549,6 +1593,141 @@
     }
     function getFuncContext(){
       return { profile: funcCurrentProfile || FUNC_TYPE_PROFILES.default, output: funcCurrentOutput, range: getOutputRange(funcCurrentOutput) };
+    }
+    function getActiveParams(profile){
+      const base = Array.isArray(profile?.parameters) && profile.parameters.length ? profile.parameters.slice() : ['amp','offset','freq'];
+      const existing = base.filter((param, index, array)=>array.indexOf(param) === index && FUNC_PARAM_DEFS[param]);
+      const wave = funcState.wave;
+      let filtered = existing;
+      if(wave === 'dc'){
+        filtered = existing.filter(param=>!['offset','freq','duty','phase'].includes(param));
+      }
+      if(!filtered.length){
+        if(existing.includes('amp')){
+          filtered = ['amp'];
+        }else if(existing.length){
+          filtered = [existing[0]];
+        }else{
+          filtered = ['amp'];
+        }
+      }
+      return filtered.filter(param=>FUNC_PARAM_DEFS[param]);
+    }
+    function describeScale(scale){
+      const map = {
+        1000: 'milliers',
+        100: 'centaines',
+        10: 'dizaines',
+        1: 'unités',
+        0.1: 'dixièmes',
+        0.01: 'centièmes',
+        0.001: 'millièmes',
+        0.0001: 'dix-millièmes'
+      };
+      const rounded = Number(scale.toFixed(4));
+      if(map[rounded]) return map[rounded];
+      if(scale > 1){
+        return `×${formatNumber(scale, 0)}`;
+      }
+      const decimals = Math.round(Math.abs(Math.log10(scale)));
+      if(!Number.isFinite(decimals)) return formatNumber(scale, 0);
+      if(decimals === 0) return 'unités';
+      if(decimals === 1) return 'dixièmes';
+      if(decimals === 2) return 'centièmes';
+      if(decimals === 3) return 'millièmes';
+      return `10^-${decimals}`;
+    }
+    function formatScaleLabel(scale){
+      if(scale >= 1){
+        return formatNumber(scale, 0);
+      }
+      const decimals = Math.max(1, Math.round(Math.abs(Math.log10(scale))));
+      return formatNumber(scale, decimals);
+    }
+    function buildAdjustScaleList(def, ctx){
+      if(!def) return [1];
+      const value = funcState[def.key];
+      const min = typeof def.min === 'function' ? def.min(ctx, value) : def.min;
+      const max = typeof def.max === 'function' ? def.max(ctx, value) : def.max;
+      const magnitudes = [];
+      if(Number.isFinite(value)) magnitudes.push(Math.abs(value));
+      if(Number.isFinite(min)) magnitudes.push(Math.abs(min));
+      if(Number.isFinite(max)) magnitudes.push(Math.abs(max));
+      let absoluteMax = magnitudes.length ? Math.max(...magnitudes) : 0;
+      if(!Number.isFinite(absoluteMax) || absoluteMax <= 0){
+        absoluteMax = 1;
+      }
+      let highest = 1;
+      while(highest * 10 <= absoluteMax){
+        highest *= 10;
+      }
+      const scales = new Set();
+      for(let scale = highest; scale >= 1; scale /= 10){
+        const rounded = Number(scale.toFixed(0));
+        scales.add(rounded);
+        if(scale === 1) break;
+      }
+      const decimals = Math.max(0, Math.min(6, typeof def.decimals === 'function' ? def.decimals(ctx, value) : (def.decimals ?? 0)));
+      for(let i = 1; i <= decimals; i += 1){
+        const fraction = Number(Math.pow(10, -i).toFixed(i));
+        scales.add(fraction);
+      }
+      if(!scales.size) scales.add(1);
+      return Array.from(scales).sort((a,b)=>b-a);
+    }
+    function renderAdjustScaleButtons(){
+      if(!funcAdjustScaleGroup) return;
+      const hadFocus = funcAdjustScaleGroup.contains(document.activeElement);
+      funcAdjustScaleGroup.innerHTML = '';
+      funcAdjustScales.forEach((scale, index)=>{
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'func-scale-btn' + (index === funcAdjustScaleIndex ? ' active' : '');
+        btn.dataset.scale = String(scale);
+        btn.setAttribute('role','radio');
+        btn.setAttribute('aria-checked', index === funcAdjustScaleIndex ? 'true' : 'false');
+        const label = formatScaleLabel(scale);
+        const description = describeScale(scale);
+        btn.setAttribute('title', `Pas ${description} (×${label})`);
+        btn.setAttribute('aria-label', `Pas ${description} (×${label})`);
+        btn.tabIndex = index === funcAdjustScaleIndex ? 0 : -1;
+        btn.innerHTML = `<span class="arrow" aria-hidden="true">▲</span><span class="func-scale-text">${label}</span><span class="arrow" aria-hidden="true">▼</span>`;
+        btn.addEventListener('click', ()=>{
+          funcAdjustScaleIndex = index;
+          renderAdjustScaleButtons();
+        });
+        funcAdjustScaleGroup.appendChild(btn);
+      });
+      if(hadFocus){
+        const activeBtn = funcAdjustScaleGroup.querySelector('.func-scale-btn.active');
+        if(activeBtn) activeBtn.focus();
+      }
+    }
+    function updateAdjustScaleState(param, ctx){
+      if(!funcAdjustScaleGroup) return;
+      const def = FUNC_PARAM_DEFS[param];
+      if(!def){
+        funcAdjustScales = [1];
+        funcAdjustScaleIndex = 0;
+        funcAdjustBaseStep = 1;
+        funcAdjustScaleGroup.innerHTML = '';
+        return;
+      }
+      const value = funcState[def.key];
+      const baseStepRaw = typeof def.step === 'function' ? def.step(ctx, value) : (def.step ?? 1);
+      funcAdjustBaseStep = Number.isFinite(baseStepRaw) && baseStepRaw !== 0 ? Math.abs(baseStepRaw) : 1;
+      const scales = buildAdjustScaleList(def, ctx);
+      const previousScale = funcAdjustScales[funcAdjustScaleIndex];
+      funcAdjustScales = scales.length ? scales : [1];
+      let desired = previousScale && funcAdjustScales.includes(previousScale) ? previousScale : null;
+      if(!desired){
+        desired = funcAdjustScales.includes(1) ? 1 : funcAdjustScales[0];
+      }
+      funcAdjustScaleIndex = Math.max(0, funcAdjustScales.indexOf(desired));
+      renderAdjustScaleButtons();
+    }
+    function getCurrentAdjustScale(){
+      return funcAdjustScales[funcAdjustScaleIndex] || 1;
     }
     function ensureParamWithinBounds(param, value){
       const def = FUNC_PARAM_DEFS[param];
@@ -1593,9 +1772,10 @@
       if(!funcSummary) return;
       const ctx = getFuncContext();
       const profile = ctx.profile;
+      const params = getActiveParams(profile);
       funcSummary.innerHTML = '';
       funcSummary.classList.remove('empty');
-      if(!profile || !Array.isArray(profile.parameters) || !profile.parameters.length){
+      if(!profile || !params.length){
         funcSummary.classList.add('empty');
         const empty = document.createElement('span');
         empty.className = 'func-summary-item func-summary-empty';
@@ -1606,7 +1786,7 @@
       }
       let hasItem = false;
       let itemCount = 0;
-      profile.parameters.forEach(param=>{
+      params.forEach(param=>{
         const def = FUNC_PARAM_DEFS[param];
         if(!def) return;
         const formatted = formatParam(param, ctx);
@@ -1661,7 +1841,8 @@
     function renderFuncParamButtons(profile){
       if(!funcParamButtons) return;
       funcParamButtons.innerHTML = '';
-      const params = Array.isArray(profile?.parameters) && profile.parameters.length ? profile.parameters : ['amp','offset','freq'];
+      const params = getActiveParams(profile);
+      if(!params.length) return;
       if(!params.includes(funcState.currentParam)){
         funcState.currentParam = params[0];
       }
@@ -1707,8 +1888,12 @@
         btn.setAttribute('aria-checked', funcState.wave === wave ? 'true' : 'false');
         btn.innerHTML = `${meta.icon || ''}<span>${meta.label}</span>`;
         btn.addEventListener('click', ()=>{
-          funcState.wave = wave;
-          updateWaveButtons();
+          if(funcState.wave !== wave){
+            funcState.wave = wave;
+            updateWaveButtons();
+            renderFuncParamButtons(funcCurrentProfile);
+            updateFuncDisplay();
+          }
         });
         funcWaveList.appendChild(btn);
       });
@@ -1733,7 +1918,12 @@
     }
     function updateFuncDisplay(){
       const ctx = getFuncContext();
+      const activeParams = getActiveParams(ctx.profile);
+      if(activeParams.length && !activeParams.includes(funcState.currentParam)){
+        funcState.currentParam = activeParams[0];
+      }
       const currentParam = funcState.currentParam;
+      updateAdjustScaleState(currentParam, ctx);
       const def = FUNC_PARAM_DEFS[currentParam];
       if(def){
         const formatted = formatParam(currentParam, ctx);
@@ -1785,7 +1975,11 @@
       const def = FUNC_PARAM_DEFS[param];
       if(!def) return;
       const ctx = getFuncContext();
-      const step = typeof def.step === 'function' ? def.step(ctx, funcState[def.key]) : (def.step ?? 1);
+      const rawStep = typeof def.step === 'function' ? def.step(ctx, funcState[def.key]) : (def.step ?? 1);
+      const baseStep = Number.isFinite(rawStep) && rawStep !== 0 ? Math.abs(rawStep) : funcAdjustBaseStep || 1;
+      const scale = getCurrentAdjustScale();
+      const multiplier = Number.isFinite(scale) && scale > 0 ? scale : 1;
+      const step = baseStep * multiplier;
       let current = funcState[def.key];
       if(!Number.isFinite(current)){
         const fallback = typeof def.default === 'function' ? def.default(ctx) : def.default;
@@ -1839,6 +2033,22 @@
     }
     if(funcMinusBtn) funcMinusBtn.addEventListener('click', ()=>adjustFuncParam(-1));
     if(funcPlusBtn) funcPlusBtn.addEventListener('click', ()=>adjustFuncParam(1));
+    if(funcAdjustScaleGroup){
+      funcAdjustScaleGroup.addEventListener('keydown', event=>{
+        if(!funcAdjustScales.length) return;
+        let delta = 0;
+        if(event.key === 'ArrowLeft' || event.key === 'ArrowUp') delta = -1;
+        else if(event.key === 'ArrowRight' || event.key === 'ArrowDown') delta = 1;
+        if(delta !== 0){
+          event.preventDefault();
+          const nextIndex = Math.max(0, Math.min(funcAdjustScales.length - 1, funcAdjustScaleIndex + delta));
+          if(nextIndex !== funcAdjustScaleIndex){
+            funcAdjustScaleIndex = nextIndex;
+            renderAdjustScaleButtons();
+          }
+        }
+      });
+    }
     if(funcTargetSelect) funcTargetSelect.addEventListener('change', ()=>setFuncTarget(funcTargetSelect.value));
 
     async function loadIOForFunc(){
