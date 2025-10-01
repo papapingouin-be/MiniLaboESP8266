@@ -13,7 +13,11 @@
       "range": {
         "min": 0,
         "max": 3.3,
-        "unit": "V"
+        "unit": "V",
+        "hardware": {
+          "min": 0,
+          "max": 3.3
+        }
       },
       "notes": "Sortie analogique lissée via filtre RC (10 kΩ / 10 µF)."
     }
@@ -26,7 +30,11 @@
       "range": {
         "min": 0,
         "max": 3.3,
-        "unit": "V"
+        "unit": "V",
+        "hardware": {
+          "min": 0,
+          "max": 3.3
+        }
       },
       "vref": 3.3,
       "notes": "MCP4725 alimenté en 3,3 V, sortie 0-3,3 V proportionnelle."
@@ -42,7 +50,11 @@
       "range": {
         "min": 0,
         "max": 10,
-        "unit": "V"
+        "unit": "V",
+        "hardware": {
+          "min": 0,
+          "max": 10.5
+        }
       },
       "supply": {
         "voltage": 24,
@@ -55,6 +67,30 @@
       },
       "jumper": "5V",
       "notes": "Module PWM→0-10 V alimenté en 24 V, cavalier en position 5 V."
+    }
+  },
+  {
+    "id": "AOX2",
+    "type": "charge_pump_doubler",
+    "config": {
+      "pin": "D6",
+      "pwmMode": "balanced",
+      "frequency": 4000,
+      "pump": {
+        "c_uF": 1,
+        "diode": "Schottky",
+        "load_kOhm": 10
+      },
+      "range": {
+        "min": 0,
+        "max": 6,
+        "unit": "V",
+        "hardware": {
+          "min": 0,
+          "max": 6.6
+        }
+      },
+      "notes": "Pompe de charge doubleur pour charges légères, diode Schottky recommandée."
     }
   }
 ]
