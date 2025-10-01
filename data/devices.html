@@ -185,21 +185,26 @@
     .func-wave-btn:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:3px}
     .func-display{
       position:relative;
-      display:grid;
-      grid-template-columns: 90px 1fr 90px;
-      align-items:stretch;
-      gap:14px;
+      display:flex;
+      flex-direction:column;
+      gap:18px;
       padding:22px;
       border-radius:18px;
       background:radial-gradient(140% 120% at 50% 0%, rgba(76,195,255,.08) 0%, rgba(18,25,37,.85) 60%, rgba(10,14,21,.95) 100%);
       box-shadow: inset 0 0 0 1px rgba(64,91,130,.35), 0 20px 40px rgba(4,8,14,.55);
     }
+    .func-digit-controls{
+      display:flex;
+      justify-content:center;
+      gap:12px;
+      flex-wrap:wrap;
+    }
     .func-digit-btn{
       border:none;
-      border-radius:14px;
+      border-radius:12px;
       background: linear-gradient(150deg, rgba(13,20,32,.9) 0%, rgba(19,29,45,1) 55%, rgba(11,16,27,1) 100%);
       color:#9bd5ff;
-      font-size:42px;
+      font-size:28px;
       font-family:'Share Tech Mono', 'Segment7', 'DS-Digital', 'Courier New', monospace;
       letter-spacing:.12em;
       text-shadow: 0 0 14px rgba(76,195,255,.45);
@@ -207,8 +212,10 @@
       align-items:center;
       justify-content:center;
       cursor:pointer;
-      box-shadow: inset 0 0 0 1px rgba(62,94,138,.45), 0 14px 30px rgba(0,0,0,.45);
+      box-shadow: inset 0 0 0 1px rgba(62,94,138,.45), 0 10px 24px rgba(0,0,0,.4);
       transition:transform .15s ease, box-shadow .2s ease, background .2s ease;
+      min-width:64px;
+      min-height:52px;
     }
     .func-digit-btn:hover{transform:translateY(-2px); box-shadow: inset 0 0 0 1px rgba(76,195,255,.55), 0 16px 34px rgba(0,0,0,.55)}
     .func-digit-btn:active{transform:scale(.96); background:linear-gradient(150deg, rgba(18,26,40,.95) 0%, rgba(9,14,22,1) 100%)}
@@ -242,67 +249,82 @@
     .func-params{
       display:flex;
       flex-wrap:wrap;
-      gap:10px;
+      gap:8px;
       justify-content:center;
     }
     .func-param-btn{
       position:relative;
       border:none;
       background:linear-gradient(150deg, rgba(16,23,35,.85) 0%, rgba(10,15,24,1) 100%);
-      padding:10px 16px 12px;
-      border-radius:14px;
+      padding:12px;
+      border-radius:50%;
       cursor:pointer;
       color:#c9d7f1;
       display:flex;
-      flex-direction:column;
       align-items:center;
-      gap:6px;
-      min-width:80px;
-      box-shadow: inset 0 0 0 1px rgba(45,65,92,.55), 0 14px 28px rgba(0,0,0,.45);
+      justify-content:center;
+      width:56px;
+      height:56px;
+      box-shadow: inset 0 0 0 1px rgba(45,65,92,.55), 0 10px 24px rgba(0,0,0,.4);
       transition:transform .2s ease, box-shadow .2s ease, background .2s ease;
     }
-    .func-param-btn span.symbol{font-size:18px; letter-spacing:.4em; text-transform:uppercase; color:#58e4ff; font-weight:600}
-    .func-param-btn span.label{font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:#94a3c5}
+    .func-param-btn .symbol{font-size:20px; letter-spacing:.1em; text-transform:uppercase; color:#58e4ff; font-weight:600}
+    .func-param-btn .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+    .func-param-btn::after{
+      content:attr(data-tooltip);
+      position:absolute;
+      bottom:calc(100% + 10px);
+      left:50%;
+      transform:translateX(-50%) translateY(6px);
+      background:#0d1420;
+      color:#d1d8e5;
+      padding:6px 10px;
+      border-radius:8px;
+      border:1px solid #1f2b3d;
+      box-shadow:0 12px 24px rgba(0,0,0,.45);
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .2s ease, transform .2s ease;
+      white-space:nowrap;
+      z-index:5;
+    }
+    .func-param-btn:hover::after,
+    .func-param-btn:focus-visible::after{opacity:1; transform:translateX(-50%) translateY(0)}
     .func-param-btn.active{
       background:linear-gradient(150deg, rgba(80,220,255,.35) 0%, rgba(20,125,220,.65) 100%);
       color:#051020;
-      box-shadow:0 16px 32px rgba(56,160,255,.35), inset 0 0 0 1px rgba(12,20,32,.45);
+      box-shadow:0 12px 28px rgba(56,160,255,.28), inset 0 0 0 1px rgba(12,20,32,.45);
     }
-    .func-param-btn.active span.symbol{color:#0b1220}
+    .func-param-btn.active .symbol{color:#0b1220}
     .func-param-btn:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:4px}
-    .func-side{
-      display:flex;
-      flex-direction:column;
-      justify-content:space-between;
-      gap:18px;
-    }
     .func-status{
       font-size:13px;
       color:#9aa6bb;
       background:rgba(10,16,25,.85);
-      border-radius:12px;
-      padding:12px 14px;
-      border:1px solid rgba(30,45,68,.55);
-      box-shadow: inset 0 0 0 1px rgba(18,28,44,.55);
+      border-radius:10px;
+      padding:10px 14px;
+      border:1px solid rgba(30,45,68,.45);
+      box-shadow: inset 0 0 0 1px rgba(18,28,44,.45);
     }
     .func-summary{
-      display:grid;
-      gap:12px;
-      grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
-    }
-    .func-summary-card{
-      background:linear-gradient(150deg, rgba(12,18,29,.9) 0%, rgba(8,12,21,1) 100%);
-      border-radius:12px;
-      padding:12px 14px;
-      border:1px solid rgba(28,40,62,.6);
-      box-shadow: inset 0 0 0 1px rgba(20,32,52,.55);
       display:flex;
-      flex-direction:column;
+      flex-wrap:wrap;
       gap:8px;
+      align-items:center;
+      font-size:13px;
+      color:#d0def6;
     }
-    .func-summary-card .label{font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:#7f8ea8}
-    .func-summary-card .value{font-size:20px; font-weight:600; letter-spacing:.04em; color:#f0f7ff}
-    .func-summary-card .sub{font-size:12px; color:#63c7ff}
+    .func-summary-item{display:flex; gap:6px; align-items:baseline; background:rgba(14,22,35,.7); padding:6px 10px; border-radius:8px; border:1px solid rgba(40,56,82,.5)}
+    .func-summary-item .label{letter-spacing:.12em; text-transform:uppercase; font-size:10px; color:#7f8ea8}
+    .func-summary-item .value{font-weight:600; color:#f0f7ff; font-size:13px}
+    .func-summary-item .detail{font-size:11px; color:#63c7ff}
+    .func-summary-empty{opacity:.6; font-style:italic; padding:6px 0}
+    .func-summary-wrap{display:flex; flex-direction:column; gap:12px}
+    .func-info-line{display:flex; flex-wrap:wrap; gap:12px; align-items:center}
+    .func-info-line .func-summary{flex:1 1 auto}
     .func-hint{
       font-size:12px;
       color:#6e7f99;
@@ -312,7 +334,7 @@
       padding:12px 14px;
       border:1px dashed rgba(76,195,255,.35);
     }
-    .func-actions{display:flex; gap:12px; align-items:center; justify-content:flex-end}
+    .func-actions{display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-left:auto}
     .func-actions .btn.primary{
       padding:12px 22px;
       font-size:14px;
@@ -636,23 +658,27 @@
               <div class="pill blue" id="func-range-pill">Plage : —</div>
             </div>
             <div class="func-display">
-              <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur">−</button>
               <div class="func-main-value">
                 <div class="func-value-label" id="func-value-label">Amplitude</div>
                 <div class="func-value-main" id="func-value-main">00<span class="unit">%</span></div>
                 <div class="func-value-secondary" id="func-value-secondary"></div>
               </div>
-              <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur">+</button>
+              <div class="func-digit-controls">
+                <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur" title="Diminuer">−</button>
+                <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur" title="Augmenter">+</button>
+              </div>
             </div>
             <div class="func-params" id="func-param-buttons"></div>
           </div>
-          <div class="func-side">
-            <div class="func-status" id="func-status">Prêt.</div>
-            <div class="func-summary" id="func-summary"></div>
-            <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
-            <div class="func-actions">
-              <button class="btn primary" id="func-apply">Lancer la sortie</button>
+          <div class="func-summary-wrap">
+            <div class="func-info-line">
+              <div class="func-status" id="func-status">Prêt.</div>
+              <div class="func-summary" id="func-summary" aria-live="polite">—</div>
+              <div class="func-actions">
+                <button class="btn primary" id="func-apply">Lancer la sortie</button>
+              </div>
             </div>
+            <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
           </div>
         </div>
       </section>
@@ -1247,6 +1273,10 @@
       saw: {
         label: 'Dent de scie',
         icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="2,18 10,6 10,18 18,6 18,18 22,12"/></svg>'
+      },
+      dc: {
+        label: 'DC',
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="2" y1="12" x2="22" y2="12"/></svg>'
       }
     };
 
@@ -1268,7 +1298,7 @@
         label: 'PWM lissée RC',
         description: 'Sortie PWM haute fréquence filtrée par réseau RC.',
         parameters: ['amp','offset','freq','duty'],
-        waveforms: ['sine','square','triangle','saw'],
+        waveforms: ['dc','sine','square','triangle','saw'],
         ranges: {
           freq: { min: 10, max: 20000, step: 10, decimals: 0 },
           amp: { step: 1, decimals: 0 },
@@ -1510,27 +1540,38 @@
       const ctx = getFuncContext();
       const profile = ctx.profile;
       funcSummary.innerHTML = '';
-      if(!profile || !Array.isArray(profile.parameters)) return;
+      if(!profile || !Array.isArray(profile.parameters)){
+        funcSummary.textContent = '—';
+        return;
+      }
       profile.parameters.forEach(param=>{
         if(param === funcState.currentParam) return;
         const def = FUNC_PARAM_DEFS[param];
         if(!def) return;
         const formatted = formatParam(param, ctx);
-        const card = document.createElement('div');
-        card.className = 'func-summary-card';
-        const label = document.createElement('div');
+        const item = document.createElement('span');
+        item.className = 'func-summary-item';
+        const label = document.createElement('span');
         label.className = 'label';
         label.textContent = def.label;
-        const value = document.createElement('div');
+        const value = document.createElement('span');
         value.className = 'value';
         value.textContent = formatted.main + (formatted.unit ? ' ' + formatted.unit : '');
-        const sub = document.createElement('div');
-        sub.className = 'sub';
-        sub.textContent = formatted.secondary || '—';
-        sub.style.opacity = formatted.secondary ? '1' : '0.4';
-        card.append(label, value, sub);
-        funcSummary.appendChild(card);
+        item.append(label, value);
+        if(formatted.secondary){
+          const detail = document.createElement('span');
+          detail.className = 'detail';
+          detail.textContent = formatted.secondary;
+          item.append(detail);
+        }
+        funcSummary.appendChild(item);
       });
+      if(!funcSummary.children.length){
+        const empty = document.createElement('span');
+        empty.className = 'func-summary-empty';
+        empty.textContent = '—';
+        funcSummary.appendChild(empty);
+      }
     }
     function renderFuncParamButtons(profile){
       if(!funcParamButtons) return;
@@ -1546,7 +1587,17 @@
         btn.type = 'button';
         btn.className = 'func-param-btn' + (funcState.currentParam === param ? ' active' : '');
         btn.dataset.param = param;
-        btn.innerHTML = `<span class="symbol">${def.symbol}</span><span class="label">${def.label}</span>`;
+        const tooltip = def.label || param;
+        btn.dataset.tooltip = tooltip;
+        btn.setAttribute('aria-label', tooltip);
+        btn.setAttribute('title', tooltip);
+        const symbol = document.createElement('span');
+        symbol.className = 'symbol';
+        symbol.textContent = def.symbol || (tooltip ? tooltip.charAt(0) : param.charAt(0)).toUpperCase();
+        const sr = document.createElement('span');
+        sr.className = 'sr-only';
+        sr.textContent = tooltip;
+        btn.append(symbol, sr);
         btn.addEventListener('click', ()=>{
           funcState.currentParam = param;
           updateFuncDisplay();
