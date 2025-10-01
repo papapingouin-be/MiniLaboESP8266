@@ -124,42 +124,74 @@
 
     /* FUNCGEN styles */
     #card-func .content{
-      display:grid;
-      grid-template-columns: 1.6fr 1fr;
-      gap:18px;
+      padding:18px;
       height:calc(100% - 52px);
     }
-    @media (max-width: 980px){
-      #card-func .content{grid-template-columns:1fr; grid-auto-rows:auto}
-    }
-    .func-panel{
-      display:flex;
-      flex-direction:column;
-      gap:18px;
+    .func-layout{
+      width:100%;
       height:100%;
+      border-collapse:separate;
+      border-spacing:6px;
+      table-layout:fixed;
     }
-    .func-output-select{
+    .func-layout .func-col-label{width:8%}
+    .func-layout .func-col-main{width:62%}
+    .func-layout .func-col-side{width:30%}
+    .func-layout td{
+      border:1px solid #1b2636;
+      border-radius:12px;
+      background:rgba(12,18,30,.85);
+      padding:12px;
+      vertical-align:top;
+    }
+    .func-layout .func-label{
+      width:56px;
+      text-align:center;
+      font-size:18px;
+      font-weight:600;
+      color:#c8d4e8;
+      letter-spacing:.2em;
+      text-transform:uppercase;
+      background:rgba(12,18,30,.65);
       display:flex;
-      gap:12px;
-      align-items:flex-end;
-      flex-wrap:wrap;
+      align-items:center;
+      justify-content:center;
     }
-    .func-output-select label{font-size:12px; color:#9aa6bb; letter-spacing:.04em; text-transform:uppercase}
-    .func-output-select .select{min-width:160px}
-    .func-output-meta{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:12px;
+    .func-layout .func-label-sub{font-size:18px; font-variant-numeric:tabular-nums}
+    .func-meta-cell{
+      text-align:center;
+      background:linear-gradient(160deg, rgba(13,19,30,.9) 0%, rgba(12,18,29,.8) 100%);
     }
-    .func-output-details{
-      display:flex;
-      flex-direction:column;
-      gap:2px;
+    .func-meta-cell .func-summary{justify-content:center; font-size:13px; color:#d0def6}
+    .func-meta-cell .func-summary-empty{width:100%; text-align:center}
+    .func-output-cell{
+      background:linear-gradient(160deg, rgba(15,23,35,.9) 0%, rgba(12,18,28,.8) 100%);
     }
-    .func-output-name{font-size:18px; font-weight:600; letter-spacing:.03em}
-    .func-output-type{font-size:12px; letter-spacing:.18em; color:#58e4ff; text-transform:uppercase}
-    .func-wave-list{display:flex; gap:8px; flex-wrap:wrap}
+    .func-output-box{display:flex; flex-direction:column; gap:6px}
+    .func-output-box label{font-size:12px; color:#9aa6bb; text-transform:uppercase; letter-spacing:.08em}
+    .func-output-box .select{min-width:160px}
+    .func-output-box .func-output-name{font-size:18px; font-weight:600; letter-spacing:.03em}
+    .func-output-box .func-output-type{font-size:12px; letter-spacing:.18em; color:#58e4ff; text-transform:uppercase}
+    .func-output-box .pill{align-self:flex-start}
+    .func-display-cell{padding:0; background:none}
+    .func-display{height:100%; border-radius:16px}
+    .func-adjust-cell{display:flex; align-items:center; justify-content:center; background:rgba(12,18,30,.75)}
+    .func-adjust-cell .func-digit-btn{min-width:64px; min-height:64px}
+    .func-adjust-cell.top{border-bottom-left-radius:0}
+    .func-adjust-cell.bottom{border-top-left-radius:0}
+    .func-param-zone{display:flex; flex-direction:column; gap:12px; align-items:center}
+    .func-wave-cell{background:linear-gradient(160deg, rgba(12,18,30,.82) 0%, rgba(10,14,22,.9) 100%); padding:12px 10px}
+    .func-wave-list{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
+    .func-action-cell{background:linear-gradient(160deg, rgba(11,18,28,.92) 0%, rgba(8,12,21,.9) 100%)}
+    .func-action-stack{display:flex; flex-direction:column; gap:12px; height:100%}
+    .func-action-stack .func-status{margin:0}
+    .func-action-stack .func-hint{margin-top:auto}
+    @media (max-width: 980px){
+      #card-func .content{padding:12px}
+      .func-layout{border-spacing:4px}
+      .func-layout td{padding:10px}
+      .func-layout .func-label{width:46px; font-size:16px}
+    }
     .func-wave-btn{
       border:none;
       background:rgba(76,195,255,.12);
@@ -187,17 +219,13 @@
       position:relative;
       display:flex;
       flex-direction:column;
+      justify-content:center;
+      align-items:center;
       gap:18px;
       padding:22px;
       border-radius:18px;
       background:radial-gradient(140% 120% at 50% 0%, rgba(76,195,255,.08) 0%, rgba(18,25,37,.85) 60%, rgba(10,14,21,.95) 100%);
       box-shadow: inset 0 0 0 1px rgba(64,91,130,.35), 0 20px 40px rgba(4,8,14,.55);
-    }
-    .func-digit-controls{
-      display:flex;
-      justify-content:center;
-      gap:12px;
-      flex-wrap:wrap;
     }
     .func-digit-btn{
       border:none;
@@ -314,6 +342,7 @@
       flex-wrap:wrap;
       gap:8px;
       align-items:center;
+      justify-content:center;
       font-size:13px;
       color:#d0def6;
     }
@@ -322,9 +351,6 @@
     .func-summary-item .value{font-weight:600; color:#f0f7ff; font-size:13px}
     .func-summary-item .detail{font-size:11px; color:#63c7ff}
     .func-summary-empty{opacity:.6; font-style:italic; padding:6px 0}
-    .func-summary-wrap{display:flex; flex-direction:column; gap:12px}
-    .func-info-line{display:flex; flex-wrap:wrap; gap:12px; align-items:center}
-    .func-info-line .func-summary{flex:1 1 auto}
     .func-hint{
       font-size:12px;
       color:#6e7f99;
@@ -334,8 +360,8 @@
       padding:12px 14px;
       border:1px dashed rgba(76,195,255,.35);
     }
-    .func-actions{display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-left:auto}
-    .func-actions .btn.primary{
+    .func-action-stack .btn.primary{
+      align-self:flex-end;
       padding:12px 22px;
       font-size:14px;
       letter-spacing:.15em;
@@ -345,8 +371,8 @@
       border:none;
       box-shadow:0 16px 34px rgba(27,160,112,.35), inset 0 0 0 1px rgba(6,35,23,.4);
     }
-    .func-actions .btn.primary:hover{box-shadow:0 20px 40px rgba(27,160,112,.45)}
-    .func-actions .btn.primary:focus-visible{outline:2px solid rgba(54,211,153,.7); outline-offset:4px}
+    .func-action-stack .btn.primary:hover{box-shadow:0 20px 40px rgba(27,160,112,.45)}
+    .func-action-stack .btn.primary:focus-visible{outline:2px solid rgba(54,211,153,.7); outline-offset:4px}
 
     /* DMM styles */
     .dmm-display{
@@ -642,44 +668,67 @@
         <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
         <h2>Générateur de fonctions <span class="pill blue" id="func-target-pill">cible : —</span></h2>
         <div class="content">
-          <div class="func-panel">
-            <div class="func-output-select">
-              <div>
-                <label for="func-target">Sortie</label>
-                <select id="func-target" class="select"></select>
-              </div>
-              <div class="func-output-details">
-                <div class="func-output-name" id="func-output-name">—</div>
-                <div class="func-output-type" id="func-output-type">type inconnu</div>
-              </div>
-            </div>
-            <div class="func-output-meta">
-              <div class="func-wave-list" id="func-wave-list" role="radiogroup" aria-label="Forme d’onde"></div>
-              <div class="pill blue" id="func-range-pill">Plage : —</div>
-            </div>
-            <div class="func-display">
-              <div class="func-main-value">
-                <div class="func-value-label" id="func-value-label">Amplitude</div>
-                <div class="func-value-main" id="func-value-main">00<span class="unit">%</span></div>
-                <div class="func-value-secondary" id="func-value-secondary"></div>
-              </div>
-              <div class="func-digit-controls">
-                <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur" title="Diminuer">−</button>
-                <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur" title="Augmenter">+</button>
-              </div>
-            </div>
-            <div class="func-params" id="func-param-buttons"></div>
-          </div>
-          <div class="func-summary-wrap">
-            <div class="func-info-line">
-              <div class="func-status" id="func-status">Prêt.</div>
-              <div class="func-summary" id="func-summary" aria-live="polite">—</div>
-              <div class="func-actions">
-                <button class="btn primary" id="func-apply">Lancer la sortie</button>
-              </div>
-            </div>
-            <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
-          </div>
+          <table class="func-layout">
+            <colgroup>
+              <col class="func-col-label" />
+              <col class="func-col-main" />
+              <col class="func-col-side" />
+            </colgroup>
+            <tbody>
+              <tr>
+                <td class="func-label">U</td>
+                <td class="func-meta-cell">
+                  <div class="func-summary" id="func-summary" aria-live="polite">—</div>
+                </td>
+                <td class="func-output-cell">
+                  <div class="func-output-box">
+                    <label for="func-target">Sortie</label>
+                    <select id="func-target" class="select"></select>
+                    <div class="func-output-name" id="func-output-name">—</div>
+                    <div class="func-output-type" id="func-output-type">type inconnu</div>
+                    <div class="pill blue" id="func-range-pill">Plage : —</div>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="func-label func-label-sub">U<sub>0</sub></td>
+                <td class="func-display-cell" rowspan="2">
+                  <div class="func-display">
+                    <div class="func-main-value">
+                      <div class="func-value-label" id="func-value-label">Amplitude</div>
+                      <div class="func-value-main" id="func-value-main">00<span class="unit">%</span></div>
+                      <div class="func-value-secondary" id="func-value-secondary"></div>
+                    </div>
+                  </div>
+                </td>
+                <td class="func-adjust-cell top">
+                  <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur" title="Augmenter">+</button>
+                </td>
+              </tr>
+              <tr>
+                <td class="func-label">F</td>
+                <td class="func-adjust-cell bottom">
+                  <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur" title="Diminuer">−</button>
+                </td>
+              </tr>
+              <tr>
+                <td class="func-label">D</td>
+                <td class="func-wave-cell">
+                  <div class="func-param-zone">
+                    <div class="func-params" id="func-param-buttons"></div>
+                    <div class="func-wave-list" id="func-wave-list" role="radiogroup" aria-label="Forme d’onde"></div>
+                  </div>
+                </td>
+                <td class="func-action-cell">
+                  <div class="func-action-stack">
+                    <div class="func-status" id="func-status">Prêt.</div>
+                    <button class="btn primary" id="func-apply">Lancer la sortie</button>
+                    <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
