@@ -122,6 +122,210 @@
     .content.dmm-vertical .dmm-controls{flex:1 1 0; margin-top:14px; width:100%}
     .content.single{grid-template-columns: 1fr}
 
+    /* FUNCGEN styles */
+    #card-func .content{
+      display:grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap:18px;
+      height:calc(100% - 52px);
+    }
+    @media (max-width: 980px){
+      #card-func .content{grid-template-columns:1fr; grid-auto-rows:auto}
+    }
+    .func-panel{
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      height:100%;
+    }
+    .func-output-select{
+      display:flex;
+      gap:12px;
+      align-items:flex-end;
+      flex-wrap:wrap;
+    }
+    .func-output-select label{font-size:12px; color:#9aa6bb; letter-spacing:.04em; text-transform:uppercase}
+    .func-output-select .select{min-width:160px}
+    .func-output-meta{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+    }
+    .func-output-details{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+    .func-output-name{font-size:18px; font-weight:600; letter-spacing:.03em}
+    .func-output-type{font-size:12px; letter-spacing:.18em; color:#58e4ff; text-transform:uppercase}
+    .func-wave-list{display:flex; gap:8px; flex-wrap:wrap}
+    .func-wave-btn{
+      border:none;
+      background:rgba(76,195,255,.12);
+      color:#c8f3ff;
+      padding:6px 12px;
+      border-radius:10px;
+      font-size:12px;
+      letter-spacing:.05em;
+      text-transform:uppercase;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      box-shadow: inset 0 0 0 1px rgba(76,195,255,.3);
+      transition:background .2s ease, transform .2s ease, box-shadow .2s ease;
+    }
+    .func-wave-btn svg{width:18px; height:18px; stroke:currentColor; stroke-width:1.6; fill:none; opacity:.8}
+    .func-wave-btn.active{
+      background:linear-gradient(135deg, rgba(80,220,255,.35) 0%, rgba(27,155,240,.55) 100%);
+      color:#0b1220;
+      box-shadow:0 12px 28px rgba(76,195,255,.25), inset 0 0 0 1px rgba(12,20,32,.35);
+    }
+    .func-wave-btn:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:3px}
+    .func-display{
+      position:relative;
+      display:grid;
+      grid-template-columns: 90px 1fr 90px;
+      align-items:stretch;
+      gap:14px;
+      padding:22px;
+      border-radius:18px;
+      background:radial-gradient(140% 120% at 50% 0%, rgba(76,195,255,.08) 0%, rgba(18,25,37,.85) 60%, rgba(10,14,21,.95) 100%);
+      box-shadow: inset 0 0 0 1px rgba(64,91,130,.35), 0 20px 40px rgba(4,8,14,.55);
+    }
+    .func-digit-btn{
+      border:none;
+      border-radius:14px;
+      background: linear-gradient(150deg, rgba(13,20,32,.9) 0%, rgba(19,29,45,1) 55%, rgba(11,16,27,1) 100%);
+      color:#9bd5ff;
+      font-size:42px;
+      font-family:'Share Tech Mono', 'Segment7', 'DS-Digital', 'Courier New', monospace;
+      letter-spacing:.12em;
+      text-shadow: 0 0 14px rgba(76,195,255,.45);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      box-shadow: inset 0 0 0 1px rgba(62,94,138,.45), 0 14px 30px rgba(0,0,0,.45);
+      transition:transform .15s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .func-digit-btn:hover{transform:translateY(-2px); box-shadow: inset 0 0 0 1px rgba(76,195,255,.55), 0 16px 34px rgba(0,0,0,.55)}
+    .func-digit-btn:active{transform:scale(.96); background:linear-gradient(150deg, rgba(18,26,40,.95) 0%, rgba(9,14,22,1) 100%)}
+    .func-digit-btn:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:4px}
+    .func-main-value{
+      background:rgba(11,18,30,.85);
+      border-radius:16px;
+      padding:18px 14px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      box-shadow: inset 0 0 0 1px rgba(45,70,102,.45), inset 0 20px 40px rgba(5,10,18,.55);
+    }
+    .func-value-label{font-size:12px; letter-spacing:.18em; color:#9aa6bb; text-transform:uppercase}
+    .func-value-main{
+      font-size:56px;
+      font-family:'Share Tech Mono', 'Orbitron', 'Courier New', monospace;
+      font-weight:600;
+      letter-spacing:.08em;
+      background: linear-gradient(180deg, #c0f2ff 0%, #63d0ff 45%, #1f97ff 100%);
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      text-shadow:0 6px 22px rgba(76,195,255,.35);
+      display:flex;
+      align-items:baseline;
+      gap:8px;
+    }
+    .func-value-main span.unit{font-size:20px; letter-spacing:.25em; text-transform:uppercase}
+    .func-value-secondary{font-size:14px; color:#83d6f7; letter-spacing:.05em}
+    .func-params{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      justify-content:center;
+    }
+    .func-param-btn{
+      position:relative;
+      border:none;
+      background:linear-gradient(150deg, rgba(16,23,35,.85) 0%, rgba(10,15,24,1) 100%);
+      padding:10px 16px 12px;
+      border-radius:14px;
+      cursor:pointer;
+      color:#c9d7f1;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:6px;
+      min-width:80px;
+      box-shadow: inset 0 0 0 1px rgba(45,65,92,.55), 0 14px 28px rgba(0,0,0,.45);
+      transition:transform .2s ease, box-shadow .2s ease, background .2s ease;
+    }
+    .func-param-btn span.symbol{font-size:18px; letter-spacing:.4em; text-transform:uppercase; color:#58e4ff; font-weight:600}
+    .func-param-btn span.label{font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:#94a3c5}
+    .func-param-btn.active{
+      background:linear-gradient(150deg, rgba(80,220,255,.35) 0%, rgba(20,125,220,.65) 100%);
+      color:#051020;
+      box-shadow:0 16px 32px rgba(56,160,255,.35), inset 0 0 0 1px rgba(12,20,32,.45);
+    }
+    .func-param-btn.active span.symbol{color:#0b1220}
+    .func-param-btn:focus-visible{outline:2px solid rgba(76,195,255,.6); outline-offset:4px}
+    .func-side{
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      gap:18px;
+    }
+    .func-status{
+      font-size:13px;
+      color:#9aa6bb;
+      background:rgba(10,16,25,.85);
+      border-radius:12px;
+      padding:12px 14px;
+      border:1px solid rgba(30,45,68,.55);
+      box-shadow: inset 0 0 0 1px rgba(18,28,44,.55);
+    }
+    .func-summary{
+      display:grid;
+      gap:12px;
+      grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+    }
+    .func-summary-card{
+      background:linear-gradient(150deg, rgba(12,18,29,.9) 0%, rgba(8,12,21,1) 100%);
+      border-radius:12px;
+      padding:12px 14px;
+      border:1px solid rgba(28,40,62,.6);
+      box-shadow: inset 0 0 0 1px rgba(20,32,52,.55);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .func-summary-card .label{font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:#7f8ea8}
+    .func-summary-card .value{font-size:20px; font-weight:600; letter-spacing:.04em; color:#f0f7ff}
+    .func-summary-card .sub{font-size:12px; color:#63c7ff}
+    .func-hint{
+      font-size:12px;
+      color:#6e7f99;
+      line-height:1.5;
+      background:rgba(8,12,21,.85);
+      border-radius:12px;
+      padding:12px 14px;
+      border:1px dashed rgba(76,195,255,.35);
+    }
+    .func-actions{display:flex; gap:12px; align-items:center; justify-content:flex-end}
+    .func-actions .btn.primary{
+      padding:12px 22px;
+      font-size:14px;
+      letter-spacing:.15em;
+      text-transform:uppercase;
+      border-radius:999px;
+      background:linear-gradient(130deg, rgba(61,217,158,.8) 0%, rgba(33,162,111,.95) 100%);
+      border:none;
+      box-shadow:0 16px 34px rgba(27,160,112,.35), inset 0 0 0 1px rgba(6,35,23,.4);
+    }
+    .func-actions .btn.primary:hover{box-shadow:0 20px 40px rgba(27,160,112,.45)}
+    .func-actions .btn.primary:focus-visible{outline:2px solid rgba(54,211,153,.7); outline-offset:4px}
+
     /* DMM styles */
     .dmm-display{
       background: radial-gradient(600px 200px at 50% -10%, #0c111b 0%, #0c111b 60%, #0a0f18 100%);
@@ -416,46 +620,39 @@
         <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
         <h2>Générateur de fonctions <span class="pill blue" id="func-target-pill">cible : —</span></h2>
         <div class="content">
-          <div class="knob">
-            <div class="row">
+          <div class="func-panel">
+            <div class="func-output-select">
               <div>
-                <label>Amplitude (%)</label>
-                <input id="func-amp" type="range" min="0" max="100" value="50" />
-              </div>
-              <div>
-                <label>Offset (%)</label>
-                <input id="func-off" type="range" min="0" max="100" value="0" />
-              </div>
-            </div>
-            <div class="row">
-              <div>
-                <label>Fréquence (Hz)</label>
-                <input id="func-freq" type="number" min="0.1" step="0.1" value="50" />
-              </div>
-              <div>
-                <label>Forme</label>
-                <select id="func-wave" class="select">
-                  <option value="sine">Sinus</option>
-                  <option value="square">Carré</option>
-                  <option value="triangle">Triangle</option>
-                </select>
-              </div>
-            </div>
-            <div class="row">
-              <div>
-                <label>Cible IO</label>
+                <label for="func-target">Sortie</label>
                 <select id="func-target" class="select"></select>
               </div>
-              <div class="right" style="display:flex; align-items:flex-end">
-                <button class="btn primary" id="func-apply">Appliquer</button>
+              <div class="func-output-details">
+                <div class="func-output-name" id="func-output-name">—</div>
+                <div class="func-output-type" id="func-output-type">type inconnu</div>
               </div>
             </div>
-            <div class="hint">La sortie est appliquée en % de l’échelle de l’IO cible (DAC/0‑10 V).</div>
+            <div class="func-output-meta">
+              <div class="func-wave-list" id="func-wave-list" role="radiogroup" aria-label="Forme d’onde"></div>
+              <div class="pill blue" id="func-range-pill">Plage : —</div>
+            </div>
+            <div class="func-display">
+              <button class="func-digit-btn" id="func-minus" type="button" aria-label="Diminuer la valeur">−</button>
+              <div class="func-main-value">
+                <div class="func-value-label" id="func-value-label">Amplitude</div>
+                <div class="func-value-main" id="func-value-main">00<span class="unit">%</span></div>
+                <div class="func-value-secondary" id="func-value-secondary"></div>
+              </div>
+              <button class="func-digit-btn" id="func-plus" type="button" aria-label="Augmenter la valeur">+</button>
+            </div>
+            <div class="func-params" id="func-param-buttons"></div>
           </div>
-          <div>
-            <div class="list" id="func-status">Prêt.</div>
-            <div class="spacer"></div>
-            <div class="hint">Astuce : définis une amplitude puis ajoute un offset pour centrer ton signal.</div>
+          <div class="func-side">
+            <div class="func-status" id="func-status">Prêt.</div>
+            <div class="func-summary" id="func-summary"></div>
+            <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
+            <div class="func-actions">
+              <button class="btn primary" id="func-apply">Lancer la sortie</button>
+            </div>
           </div>
         </div>
       </section>
@@ -1018,96 +1215,563 @@
     updateDmmMode();
 
     /* --------- FUNCGEN --------- */
-    async function loadIOForFunc(){
-      const sel = $('#func-target');
-      if(!sel) return;
-      let ids = [];
+    const funcTargetSelect = $('#func-target');
+    const funcWaveList = $('#func-wave-list');
+    const funcOutputName = $('#func-output-name');
+    const funcOutputType = $('#func-output-type');
+    const funcRangePill = $('#func-range-pill');
+    const funcValueLabel = $('#func-value-label');
+    const funcValueMain = $('#func-value-main');
+    const funcValueSecondary = $('#func-value-secondary');
+    const funcParamButtons = $('#func-param-buttons');
+    const funcMinusBtn = $('#func-minus');
+    const funcPlusBtn = $('#func-plus');
+    const funcSummary = $('#func-summary');
+    const funcHint = $('#func-hint');
+    const funcStatus = $('#func-status');
+    const funcTargetPill = $('#func-target-pill');
+
+    const FUNC_WAVE_CATALOG = {
+      sine: {
+        label: 'Sinus',
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c3-10 5 10 10 0s7 10 10 0"/></svg>'
+      },
+      square: {
+        label: 'Carré',
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="2,18 2,6 12,6 12,18 22,18 22,6"/></svg>'
+      },
+      triangle: {
+        label: 'Triangle',
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="2,18 8,6 14,18 22,6"/></svg>'
+      },
+      saw: {
+        label: 'Dent de scie',
+        icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="2,18 10,6 10,18 18,6 18,18 22,12"/></svg>'
+      }
+    };
+
+    const FUNC_TYPE_PROFILES = {
+      mcp4725: {
+        label: 'DAC linéaire',
+        description: 'Sortie analogique pilotée par MCP4725, idéale pour des signaux doux.',
+        parameters: ['amp','offset','freq','phase'],
+        waveforms: ['sine','square','triangle'],
+        ranges: {
+          freq: { min: 0.1, max: 2000, step: 0.1, decimals: 1 },
+          amp: { step: 0.5, decimals: 1 },
+          offset: { step: 0.5, decimals: 1 },
+          phase: { step: 5 }
+        },
+        hint: 'Ajuste amplitude et offset pour rester dans la plage 0-3,3 V et créer des rampes ou des sinusoïdes analogiques.'
+      },
+      pwm_rc: {
+        label: 'PWM lissée RC',
+        description: 'Sortie PWM haute fréquence filtrée par réseau RC.',
+        parameters: ['amp','offset','freq','duty'],
+        waveforms: ['sine','square','triangle','saw'],
+        ranges: {
+          freq: { min: 10, max: 20000, step: 10, decimals: 0 },
+          amp: { step: 1, decimals: 0 },
+          offset: { step: 1, decimals: 0 },
+          duty: { min: 5, max: 95, step: 1 }
+        },
+        hint: 'Utilise la fréquence pour régler la vitesse du PWM et le ratio pour moduler la composante continue filtrée.'
+      },
+      pwm_0_10v: {
+        label: 'Interface 0-10 V',
+        description: 'Module PWM → 0-10 V pour variateurs et automates.',
+        parameters: ['amp','offset','freq','duty'],
+        waveforms: ['sine','square','triangle'],
+        ranges: {
+          freq: { min: 5, max: 5000, step: 5, decimals: 0 },
+          amp: { step: 1, decimals: 0 },
+          offset: { step: 1, decimals: 0 },
+          duty: { min: 5, max: 95, step: 1 }
+        },
+        hint: 'Respecte la plage industrielle 0-10 V. Combine amplitude et offset pour appliquer un niveau précis.'
+      },
+      charge_pump_doubler: {
+        label: 'Pompe de charge x2',
+        description: 'Générateur basé sur pompe de charge pour charges légères.',
+        parameters: ['amp','offset','freq','phase'],
+        waveforms: ['sine','square','triangle'],
+        ranges: {
+          freq: { min: 10, max: 1000, step: 5, decimals: 0 },
+          amp: { step: 1, decimals: 0 },
+          offset: { step: 1, decimals: 0 },
+          phase: { step: 10 }
+        },
+        hint: 'Pour éviter la saturation, centre ton signal grâce à l’offset et garde une fréquence modérée.'
+      },
+      default: {
+        label: 'Sortie générique',
+        description: 'Configuration standard amplitude / offset / fréquence.',
+        parameters: ['amp','offset','freq'],
+        waveforms: ['sine','square','triangle'],
+        ranges: {
+          freq: { min: 0.1, max: 1000, step: 0.1, decimals: 1 },
+          amp: { step: 1, decimals: 0 },
+          offset: { step: 1, decimals: 0 }
+        },
+        hint: 'Sélectionne une sortie pour accéder aux paramètres spécifiques et façonner ton signal.'
+      }
+    };
+
+    const FUNC_PARAM_DEFS = {
+      amp: {
+        key: 'amp_pct',
+        label: 'Amplitude',
+        symbol: 'U',
+        unit: '%',
+        default: 50,
+        min(ctx){ return ctx.profile?.ranges?.amp?.min ?? 0; },
+        max(ctx){ return ctx.profile?.ranges?.amp?.max ?? 100; },
+        step(ctx){ return ctx.profile?.ranges?.amp?.step ?? 1; },
+        decimals(ctx){ return ctx.profile?.ranges?.amp?.decimals ?? 1; },
+        format(value, ctx){
+          const decimals = ctx.profile?.ranges?.amp?.decimals ?? 1;
+          const main = formatNumber(value, decimals);
+          const range = ctx.range;
+          let secondary = '';
+          if(range && Number.isFinite(range.span)){
+            const actual = percentToRange(value, range);
+            const decimalsActual = range.span < 1 ? 3 : range.span < 5 ? 2 : 1;
+            secondary = `≈ ${formatNumber(actual, decimalsActual)} ${range.unit || ''}`;
+          }
+          return { main, unit: '%', secondary };
+        }
+      },
+      offset: {
+        key: 'offset_pct',
+        label: 'Offset',
+        symbol: 'U₀',
+        unit: '%',
+        default: 0,
+        min(ctx){
+          if(ctx.profile?.ranges?.offset?.min !== undefined) return ctx.profile.ranges.offset.min;
+          if(ctx.range && typeof ctx.range.min === 'number' && ctx.range.min >= 0) return 0;
+          return -100;
+        },
+        max(ctx){ return ctx.profile?.ranges?.offset?.max ?? 100; },
+        step(ctx){ return ctx.profile?.ranges?.offset?.step ?? 1; },
+        decimals(ctx){ return ctx.profile?.ranges?.offset?.decimals ?? 1; },
+        format(value, ctx){
+          const decimals = ctx.profile?.ranges?.offset?.decimals ?? 1;
+          const main = formatNumber(value, decimals);
+          const range = ctx.range;
+          let secondary = '';
+          if(range && Number.isFinite(range.span)){
+            const actual = percentToRange(value, range);
+            const decimalsActual = range.span < 1 ? 3 : range.span < 5 ? 2 : 1;
+            secondary = `≈ ${formatNumber(actual, decimalsActual)} ${range.unit || ''}`;
+          }
+          return { main, unit: '%', secondary };
+        }
+      },
+      freq: {
+        key: 'freq',
+        label: 'Fréquence',
+        symbol: 'f',
+        unit: 'Hz',
+        default: 50,
+        min(ctx){ return ctx.profile?.ranges?.freq?.min ?? 0.1; },
+        max(ctx){ return ctx.profile?.ranges?.freq?.max ?? 20000; },
+        step(ctx){ return ctx.profile?.ranges?.freq?.step ?? 1; },
+        decimals(ctx, value){
+          if(ctx.profile?.ranges?.freq?.decimals !== undefined) return ctx.profile.ranges.freq.decimals;
+          if(value < 1) return 2;
+          if(value < 10) return 1;
+          return 0;
+        },
+        format(value){
+          let unit = 'Hz';
+          let mainValue = value;
+          if(value >= 1000){
+            unit = 'kHz';
+            mainValue = value / 1000;
+          }
+          const decimals = value >= 1000 ? (value >= 10000 ? 1 : 2) : (value < 1 ? 2 : value < 10 ? 1 : 0);
+          const main = formatNumber(mainValue, decimals);
+          const secondary = value >= 1000 ? `(${formatNumber(value, 0)} Hz)` : '';
+          return { main, unit, secondary };
+        }
+      },
+      phase: {
+        key: 'phase_deg',
+        label: 'Déphasage',
+        symbol: 'φ',
+        unit: '°',
+        default: 0,
+        min(){ return 0; },
+        max(){ return 360; },
+        step(ctx){ return ctx.profile?.ranges?.phase?.step ?? 10; },
+        decimals(){ return 0; },
+        wrap: true,
+        format(value){
+          return { main: formatNumber(value, 0), unit: '°', secondary: '' };
+        }
+      },
+      duty: {
+        key: 'duty_pct',
+        label: 'Ratio',
+        symbol: 'D',
+        unit: '%',
+        default: 50,
+        min(ctx){ return ctx.profile?.ranges?.duty?.min ?? 0; },
+        max(ctx){ return ctx.profile?.ranges?.duty?.max ?? 100; },
+        step(ctx){ return ctx.profile?.ranges?.duty?.step ?? 1; },
+        decimals(ctx){ return ctx.profile?.ranges?.duty?.decimals ?? 0; },
+        format(value){
+          return { main: formatNumber(value, 0), unit: '%', secondary: '' };
+        }
+      }
+    };
+
+    let funcOutputs = [];
+    let funcCurrentOutput = null;
+    let funcCurrentProfile = FUNC_TYPE_PROFILES.default;
+    const funcState = {
+      target: '',
+      type: '',
+      wave: 'sine',
+      currentParam: 'amp',
+      freq: 50,
+      amp_pct: 50,
+      offset_pct: 0,
+      duty_pct: 50,
+      phase_deg: 0
+    };
+
+    function formatNumber(value, decimals){
+      const safeDecimals = Math.max(0, Math.min(6, Math.round(decimals ?? 0)));
+      return Number.isFinite(value) ? new Intl.NumberFormat('fr-FR', { minimumFractionDigits: safeDecimals, maximumFractionDigits: safeDecimals }).format(value) : '—';
+    }
+    function percentToRange(percent, range){
+      if(!range) return null;
+      const span = Number(range.span);
+      if(!Number.isFinite(span)) return null;
+      return range.min + span * (percent/100);
+    }
+    function getOutputRange(output){
+      if(!output || !output.config) return null;
+      const range = output.config.range;
+      if(!range || typeof range.min !== 'number' || typeof range.max !== 'number') return null;
+      const unit = typeof range.unit === 'string' ? range.unit : '';
+      const span = range.max - range.min;
+      return { min: range.min, max: range.max, unit, span };
+    }
+    function getProfileForType(type){
+      return FUNC_TYPE_PROFILES[type] || FUNC_TYPE_PROFILES.default;
+    }
+    function getFuncContext(){
+      return { profile: funcCurrentProfile || FUNC_TYPE_PROFILES.default, output: funcCurrentOutput, range: getOutputRange(funcCurrentOutput) };
+    }
+    function ensureParamWithinBounds(param, value){
+      const def = FUNC_PARAM_DEFS[param];
+      if(!def) return value;
+      const ctx = getFuncContext();
+      const min = typeof def.min === 'function' ? def.min(ctx, value) : (def.min ?? -Infinity);
+      const max = typeof def.max === 'function' ? def.max(ctx, value) : (def.max ?? Infinity);
+      if(def.wrap){
+        const span = max - min;
+        if(span <= 0) return Math.min(Math.max(value, min), max);
+        let wrapped = value;
+        while(wrapped < min) wrapped += span;
+        while(wrapped > max) wrapped -= span;
+        return wrapped;
+      }
+      return Math.min(Math.max(value, min), max);
+    }
+    function formatParam(param, ctx){
+      const def = FUNC_PARAM_DEFS[param];
+      if(!def) return { main: '—', unit: '', secondary: '' };
+      const key = def.key;
+      let value = funcState[key];
+      if(!Number.isFinite(value)){
+        const fallback = typeof def.default === 'function' ? def.default(ctx) : def.default;
+        value = Number.isFinite(fallback) ? fallback : 0;
+      }
+      if(typeof def.format === 'function'){
+        return def.format(value, ctx);
+      }
+      const decimals = typeof def.decimals === 'function' ? def.decimals(ctx, value) : (def.decimals ?? 0);
+      return { main: formatNumber(value, decimals), unit: def.unit || '', secondary: '' };
+    }
+    function updateWaveButtons(){
+      if(!funcWaveList) return;
+      funcWaveList.querySelectorAll('button').forEach(btn=>{
+        const active = btn.dataset.wave === funcState.wave;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-checked', active ? 'true' : 'false');
+      });
+    }
+    function updateFuncSummary(){
+      if(!funcSummary) return;
+      const ctx = getFuncContext();
+      const profile = ctx.profile;
+      funcSummary.innerHTML = '';
+      if(!profile || !Array.isArray(profile.parameters)) return;
+      profile.parameters.forEach(param=>{
+        if(param === funcState.currentParam) return;
+        const def = FUNC_PARAM_DEFS[param];
+        if(!def) return;
+        const formatted = formatParam(param, ctx);
+        const card = document.createElement('div');
+        card.className = 'func-summary-card';
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = def.label;
+        const value = document.createElement('div');
+        value.className = 'value';
+        value.textContent = formatted.main + (formatted.unit ? ' ' + formatted.unit : '');
+        const sub = document.createElement('div');
+        sub.className = 'sub';
+        sub.textContent = formatted.secondary || '—';
+        sub.style.opacity = formatted.secondary ? '1' : '0.4';
+        card.append(label, value, sub);
+        funcSummary.appendChild(card);
+      });
+    }
+    function renderFuncParamButtons(profile){
+      if(!funcParamButtons) return;
+      funcParamButtons.innerHTML = '';
+      const params = Array.isArray(profile?.parameters) && profile.parameters.length ? profile.parameters : ['amp','offset','freq'];
+      if(!params.includes(funcState.currentParam)){
+        funcState.currentParam = params[0];
+      }
+      params.forEach(param=>{
+        const def = FUNC_PARAM_DEFS[param];
+        if(!def) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'func-param-btn' + (funcState.currentParam === param ? ' active' : '');
+        btn.dataset.param = param;
+        btn.innerHTML = `<span class="symbol">${def.symbol}</span><span class="label">${def.label}</span>`;
+        btn.addEventListener('click', ()=>{
+          funcState.currentParam = param;
+          updateFuncDisplay();
+        });
+        funcParamButtons.appendChild(btn);
+      });
+    }
+    function renderFuncWaveButtons(profile){
+      if(!funcWaveList) return;
+      funcWaveList.innerHTML = '';
+      const waves = Array.isArray(profile?.waveforms) && profile.waveforms.length ? profile.waveforms : ['sine','square','triangle'];
+      if(!waves.includes(funcState.wave)){
+        funcState.wave = waves[0];
+      }
+      waves.forEach(wave=>{
+        const meta = FUNC_WAVE_CATALOG[wave] || { label: wave, icon: '' };
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'func-wave-btn' + (funcState.wave === wave ? ' active' : '');
+        btn.dataset.wave = wave;
+        btn.setAttribute('role','radio');
+        btn.setAttribute('aria-checked', funcState.wave === wave ? 'true' : 'false');
+        btn.innerHTML = `${meta.icon || ''}<span>${meta.label}</span>`;
+        btn.addEventListener('click', ()=>{
+          funcState.wave = wave;
+          updateWaveButtons();
+        });
+        funcWaveList.appendChild(btn);
+      });
+      updateWaveButtons();
+    }
+    function applyParamDefaults(profile){
+      if(!profile) return;
+      const ctx = getFuncContext();
+      const params = Array.isArray(profile.parameters) && profile.parameters.length ? profile.parameters : ['amp','offset','freq'];
+      params.forEach(param=>{
+        const def = FUNC_PARAM_DEFS[param];
+        if(!def) return;
+        const key = def.key;
+        let value = funcState[key];
+        if(!Number.isFinite(value)){
+          const fallback = typeof def.default === 'function' ? def.default(ctx) : def.default;
+          value = Number.isFinite(fallback) ? fallback : 0;
+        }
+        value = ensureParamWithinBounds(param, value);
+        funcState[key] = value;
+      });
+    }
+    function updateFuncDisplay(){
+      const ctx = getFuncContext();
+      const currentParam = funcState.currentParam;
+      const def = FUNC_PARAM_DEFS[currentParam];
+      if(def){
+        const formatted = formatParam(currentParam, ctx);
+        if(funcValueLabel) funcValueLabel.textContent = def.label;
+        if(funcValueMain) funcValueMain.innerHTML = `${formatted.main}<span class="unit">${formatted.unit || ''}</span>`;
+        if(funcValueSecondary){
+          funcValueSecondary.textContent = formatted.secondary || ' ';
+          funcValueSecondary.style.opacity = formatted.secondary ? '1' : '0.4';
+        }
+      }
+      if(funcParamButtons){
+        funcParamButtons.querySelectorAll('button').forEach(btn=>{
+          btn.classList.toggle('active', btn.dataset.param === currentParam);
+        });
+      }
+      updateFuncSummary();
+      updateWaveButtons();
+    }
+    function setFuncTarget(id){
+      const output = funcOutputs.find(entry=>entry.id === id) || null;
+      funcCurrentOutput = output;
+      funcCurrentProfile = getProfileForType(output?.type);
+      funcState.target = output ? output.id : '';
+      funcState.type = output ? output.type : '';
+      if(funcTargetSelect && funcTargetSelect.value !== (funcState.target || '')){
+        funcTargetSelect.value = funcState.target || '';
+      }
+      if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (funcState.target || '—');
+      const ctx = getFuncContext();
+      applyParamDefaults(funcCurrentProfile);
+      if(funcOutputName) funcOutputName.textContent = output ? (output.name || output.id) : '—';
+      if(funcOutputType) funcOutputType.textContent = funcCurrentProfile.description || funcCurrentProfile.label || (output?.type || 'type inconnu');
+      const range = ctx.range;
+      if(funcRangePill){
+        if(range){
+          const decimals = range.span < 1 ? 3 : range.span < 5 ? 2 : 1;
+          funcRangePill.textContent = `Plage : ${formatNumber(range.min, decimals)} – ${formatNumber(range.max, decimals)} ${range.unit || ''}`;
+        }else{
+          funcRangePill.textContent = 'Plage : —';
+        }
+      }
+      if(funcHint) funcHint.textContent = funcCurrentProfile.hint || FUNC_TYPE_PROFILES.default.hint;
+      renderFuncWaveButtons(funcCurrentProfile);
+      renderFuncParamButtons(funcCurrentProfile);
+      updateFuncDisplay();
+    }
+    function adjustFuncParam(direction){
+      const param = funcState.currentParam;
+      const def = FUNC_PARAM_DEFS[param];
+      if(!def) return;
+      const ctx = getFuncContext();
+      const step = typeof def.step === 'function' ? def.step(ctx, funcState[def.key]) : (def.step ?? 1);
+      let current = funcState[def.key];
+      if(!Number.isFinite(current)){
+        const fallback = typeof def.default === 'function' ? def.default(ctx) : def.default;
+        current = Number.isFinite(fallback) ? fallback : 0;
+      }
+      let next = current + direction * step;
+      next = ensureParamWithinBounds(param, next);
+      const decimals = typeof def.decimals === 'function' ? def.decimals(ctx, next) : (def.decimals ?? 0);
+      funcState[def.key] = Number.isFinite(next) ? parseFloat(next.toFixed(Math.min(6, Math.max(decimals, 2)))) : current;
+      updateFuncDisplay();
+    }
+    function normaliseOutputEntry(entry){
+      if(!entry || typeof entry !== 'object') return null;
+      const id = typeof entry.id === 'string' ? entry.id : '';
+      if(!id) return null;
+      return {
+        id,
+        type: typeof entry.type === 'string' ? entry.type : '',
+        name: typeof entry.name === 'string' ? entry.name : (typeof entry.label === 'string' ? entry.label : id),
+        config: typeof entry.config === 'object' && entry.config ? entry.config : {}
+      };
+    }
+    function parseOutputList(data){
+      if(Array.isArray(data)) return data.map(normaliseOutputEntry).filter(Boolean);
+      if(data && Array.isArray(data.outputs)) return data.outputs.map(normaliseOutputEntry).filter(Boolean);
+      return [];
+    }
+    async function fetchFuncOutputs(){
+      let list = [];
       try{
-        const resp = await j('/api/io/snapshot');
+        const resp = await j('/api/config?area=outputs');
         if(resp.ok){
           const payload = await resp.json();
-          if(payload && Array.isArray(payload.channels)){
-            ids = payload.channels.map(ch=>ch && typeof ch.id==='string'? ch.id : null).filter(Boolean);
-          }
+          list = parseOutputList(payload);
         }
       }catch(err){
         console.warn(err);
       }
-      if(!ids.length){
+      if(!list.length){
         try{
-          const fallback = await fetch('io.json',{cache:'no-cache'});
+          const fallback = await fetch('outputs.json',{cache:'no-cache'});
           if(fallback.ok){
-            const arr = await fallback.json();
-            if(Array.isArray(arr)){
-              ids = arr.map(entry=>entry && typeof entry.id==='string'? entry.id : null).filter(Boolean);
-            }
+            const payload = await fallback.json();
+            list = parseOutputList(payload);
           }
         }catch(err){
           console.warn(err);
         }
       }
-      sel.innerHTML='';
-      if(ids.length){
-        ids.forEach(id=>{
-          const opt=document.createElement('option');
-          opt.value=id;
-          opt.textContent=id;
-          sel.appendChild(opt);
+      return list;
+    }
+    if(funcMinusBtn) funcMinusBtn.addEventListener('click', ()=>adjustFuncParam(-1));
+    if(funcPlusBtn) funcPlusBtn.addEventListener('click', ()=>adjustFuncParam(1));
+    if(funcTargetSelect) funcTargetSelect.addEventListener('change', ()=>setFuncTarget(funcTargetSelect.value));
+
+    async function loadIOForFunc(){
+      if(!funcTargetSelect) return;
+      funcOutputs = await fetchFuncOutputs();
+      funcTargetSelect.innerHTML = '';
+      if(funcOutputs.length){
+        funcOutputs.forEach(output=>{
+          const opt = document.createElement('option');
+          opt.value = output.id;
+          const profile = getProfileForType(output.type);
+          opt.textContent = `${output.id} — ${profile.label}`;
+          funcTargetSelect.appendChild(opt);
         });
-        sel.value = ids[0];
       }else{
-        const opt=document.createElement('option');
-        opt.value='';
-        opt.textContent='—';
-        sel.appendChild(opt);
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '—';
+        funcTargetSelect.appendChild(opt);
       }
-      const cfg = await (async()=>{
-        try{
-          const cfgResp = await j('/api/config?area=funcgen');
-          if(cfgResp.ok){
-            return await cfgResp.json();
-          }
-        }catch(err){
-          console.warn(err);
+      let cfg = null;
+      try{
+        const cfgResp = await j('/api/config?area=funcgen');
+        if(cfgResp.ok){
+          cfg = await cfgResp.json();
         }
+      }catch(err){
+        console.warn(err);
+      }
+      if(!cfg){
         try{
           const fallback = await fetch('funcgen.json',{cache:'no-cache'});
           if(fallback.ok){
-            return await fallback.json();
+            cfg = await fallback.json();
           }
         }catch(err){
           console.warn(err);
         }
-        return null;
-      })();
-      if(cfg && typeof cfg==='object'){
-        const ampInput = $('#func-amp');
-        const offInput = $('#func-off');
-        const freqInput = $('#func-freq');
-        const waveSelect = $('#func-wave');
-        if(ampInput) ampInput.value = typeof cfg.amp_pct === 'number' ? cfg.amp_pct : (ampInput.value||50);
-        if(offInput) offInput.value = typeof cfg.offset_pct === 'number' ? cfg.offset_pct : (offInput.value||0);
-        if(freqInput) freqInput.value = typeof cfg.freq === 'number' ? cfg.freq : (freqInput.value||50);
-        if(waveSelect) waveSelect.value = typeof cfg.type === 'string' ? cfg.type : (waveSelect.value||'sine');
-        if(typeof cfg.target === 'string' && ids.includes(cfg.target)){
-          sel.value = cfg.target;
-        }
       }
-      $('#func-target-pill').textContent = 'cible : ' + (sel.value||'—');
+      if(cfg && typeof cfg === 'object'){
+        if(typeof cfg.freq === 'number') funcState.freq = cfg.freq;
+        if(typeof cfg.amp_pct === 'number') funcState.amp_pct = cfg.amp_pct;
+        if(typeof cfg.offset_pct === 'number') funcState.offset_pct = cfg.offset_pct;
+        if(typeof cfg.duty_pct === 'number') funcState.duty_pct = cfg.duty_pct;
+        if(typeof cfg.phase_deg === 'number') funcState.phase_deg = cfg.phase_deg;
+        if(typeof cfg.type === 'string') funcState.wave = cfg.type;
+        if(typeof cfg.target === 'string') funcState.target = cfg.target;
+      }
+      if(funcOutputs.length){
+        const preferred = funcState.target && funcOutputs.some(o=>o.id === funcState.target) ? funcState.target : funcOutputs[0].id;
+        funcTargetSelect.value = preferred;
+      }else{
+        funcTargetSelect.value = '';
+      }
+      setFuncTarget(funcTargetSelect.value);
+      if(funcStatus) funcStatus.textContent = funcOutputs.length ? 'Profil chargé, prêt à générer.' : 'Aucune sortie disponible.';
     }
     async function applyFunc(){
-      const target = $('#func-target') ? $('#func-target').value : '';
-      const freqVal = parseFloat($('#func-freq') ? $('#func-freq').value : '0');
-      const ampVal = parseFloat($('#func-amp') ? $('#func-amp').value : '0');
-      const offsetVal = parseFloat($('#func-off') ? $('#func-off').value : '0');
-      const waveVal = $('#func-wave') ? $('#func-wave').value : 'sine';
+      const target = funcTargetSelect ? funcTargetSelect.value : funcState.target;
+      if(target) funcState.target = target;
       const payload = {
-        type: waveVal,
-        freq: Number.isFinite(freqVal) ? freqVal : 0,
-        amp_pct: Number.isFinite(ampVal) ? ampVal : 0,
-        offset_pct: Number.isFinite(offsetVal) ? offsetVal : 0,
+        type: funcState.wave || 'sine',
+        freq: Number.isFinite(funcState.freq) ? funcState.freq : 0,
+        amp_pct: Number.isFinite(funcState.amp_pct) ? funcState.amp_pct : 0,
+        offset_pct: Number.isFinite(funcState.offset_pct) ? funcState.offset_pct : 0,
         enabled: true
       };
+      if(Number.isFinite(funcState.duty_pct)) payload.duty_pct = funcState.duty_pct;
+      if(Number.isFinite(funcState.phase_deg)) payload.phase_deg = funcState.phase_deg;
       if(target) payload.target = target;
       try{
         const r = await j('/api/funcgen',{method:'POST', body: JSON.stringify(payload)});
@@ -1116,12 +1780,12 @@
           ok = await r.json().catch(()=>({}));
         }
         const success = r.ok && ok && (ok.ok === true || ok.success === true || ok.status === 'ok');
-        $('#func-status').textContent = success ? 'Paramètres appliqués.' : 'Erreur d’application.';
-        $('#func-target-pill').textContent = 'cible : ' + (target||'—');
+        if(funcStatus) funcStatus.textContent = success ? 'Paramètres appliqués.' : 'Erreur d’application.';
+        if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
       }catch(e){
         console.warn(e);
-        $('#func-status').textContent = 'Erreur réseau.';
-        $('#func-target-pill').textContent = 'cible : ' + (target||'—');
+        if(funcStatus) funcStatus.textContent = 'Erreur réseau.';
+        if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
       }
     }
     $('#func-apply').addEventListener('click', applyFunc);
