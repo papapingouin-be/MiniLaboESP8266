@@ -47,6 +47,11 @@ void WebApi::begin() {
         handleDmm();
       });
   m_server.on(
+      "/api/scope", HTTP_GET,
+      [this]() {
+        handleScope();
+      });
+  m_server.on(
       "/api/funcgen", HTTP_POST,
       [this]() {
         handleFuncGen();
@@ -220,6 +225,273 @@ void WebApi::handleDmm() {
   // Build snapshot document
   StaticJsonDocument<512> doc;
   m_dmm->getSnapshot(doc);
+  String response;
+  serializeJson(doc, response);
+  m_server.send(200, "application/json", response);
+}
+
+void WebApi::handleScope() {
+  if (!m_io) {
+    m_server.send(500, "application/json",
+                  "{\"error\":\"io unavailable\"}");
+    return;
+  }
+
+  struct ChannelDef {
+    String name;
+    String io;
+    String label;
+    String display;
+  };
+
+  ChannelDef channels[4];
+  size_t channelCount = 0;
+  size_t sampleCount = 200;
+  float timebaseMsPerDiv = 10.0f;
+  float voltsPerDiv = 1.0f;
+  String defaultChannel = "CH1";
+  String defaultIo = "A0";
+  String defaultLabel;
+  String defaultDisplay;
+
+  auto addChannel = [&](const String &name, const String &io,
+                        const String &label, const String &display) {
+    if (channelCount >= (sizeof(channels) / sizeof(channels[0]))) return;
+    ChannelDef &ch = channels[channelCount];
+    ch.name = name.length() ? name : String("CH") + String(channelCount + 1);
+    ch.io = io.length() ? io : defaultIo;
+    ch.label = label.length() ? label : ch.name;
+    if (display.length()) {
+      ch.display = display;
+    } else {
+      ch.display = ch.label;
+      if (ch.io.length()) {
+        ch.display += String(" — ") + ch.io;
+      }
+    }
+    channelCount++;
+  };
+
+  auto channelExists = [&](const String &name) {
+    for (size_t i = 0; i < channelCount; ++i) {
+      if (channels[i].name == name) return true;
+    }
+    return false;
+  };
+
+  if (m_config) {
+    JsonDocument &cfgDoc = m_config->getConfig("scope");
+    if (cfgDoc.is<JsonObject>()) {
+      JsonObject cfg = cfgDoc.as<JsonObject>();
+
+      if (cfg["timebase_ms_per_div"].is<float>()) {
+        timebaseMsPerDiv = cfg["timebase_ms_per_div"].as<float>();
+      } else if (cfg["timebase"].is<float>()) {
+        timebaseMsPerDiv = cfg["timebase"].as<float>();
+      } else if (cfg["ms_per_div"].is<float>()) {
+        timebaseMsPerDiv = cfg["ms_per_div"].as<float>();
+      }
+      if (cfg["volts_per_div"].is<float>()) {
+        voltsPerDiv = cfg["volts_per_div"].as<float>();
+      } else if (cfg["vdiv"].is<float>()) {
+        voltsPerDiv = cfg["vdiv"].as<float>();
+      }
+
+      if (cfg["sample_count"].is<uint32_t>()) {
+        sampleCount = cfg["sample_count"].as<uint32_t>();
+      } else if (cfg["samples_per_frame"].is<uint32_t>()) {
+        sampleCount = cfg["samples_per_frame"].as<uint32_t>();
+      } else if (cfg["samples"].is<uint32_t>()) {
+        sampleCount = cfg["samples"].as<uint32_t>();
+      } else if (cfg["points"].is<uint32_t>()) {
+        sampleCount = cfg["points"].as<uint32_t>();
+      }
+
+      if (cfg["channel"].is<const char *>()) {
+        const char *ch = cfg["channel"].as<const char *>();
+        if (ch && ch[0]) defaultChannel = String(ch);
+      }
+      if (cfg["io"].is<const char *>()) {
+        const char *io = cfg["io"].as<const char *>();
+        if (io && io[0]) defaultIo = String(io);
+      } else if (cfg["input"].is<const char *>()) {
+        const char *io = cfg["input"].as<const char *>();
+        if (io && io[0]) defaultIo = String(io);
+      }
+      if (cfg["label"].is<const char *>()) {
+        const char *label = cfg["label"].as<const char *>();
+        if (label && label[0]) defaultLabel = String(label);
+      }
+      if (cfg["display"].is<const char *>()) {
+        const char *display = cfg["display"].as<const char *>();
+        if (display && display[0]) defaultDisplay = String(display);
+      }
+
+      if (cfg.containsKey("channels")) {
+        JsonArray arr = cfg["channels"].as<JsonArray>();
+        for (JsonVariant v : arr) {
+          if (!v.is<JsonObject>()) continue;
+          JsonObject chObj = v.as<JsonObject>();
+          String name;
+          if (chObj["channel"].is<const char *>()) {
+            const char *c = chObj["channel"].as<const char *>();
+            if (c && c[0]) name = String(c);
+          } else if (chObj["name"].is<const char *>()) {
+            const char *c = chObj["name"].as<const char *>();
+            if (c && c[0]) name = String(c);
+          } else if (chObj["id"].is<const char *>()) {
+            const char *c = chObj["id"].as<const char *>();
+            if (c && c[0]) name = String(c);
+          }
+          String io;
+          if (chObj["io"].is<const char *>()) {
+            const char *c = chObj["io"].as<const char *>();
+            if (c && c[0]) io = String(c);
+          } else if (chObj["input"].is<const char *>()) {
+            const char *c = chObj["input"].as<const char *>();
+            if (c && c[0]) io = String(c);
+          }
+          String label;
+          if (chObj["label"].is<const char *>()) {
+            const char *c = chObj["label"].as<const char *>();
+            if (c && c[0]) label = String(c);
+          }
+          String display;
+          if (chObj["display"].is<const char *>()) {
+            const char *c = chObj["display"].as<const char *>();
+            if (c && c[0]) display = String(c);
+          }
+          if (!channelExists(name)) {
+            addChannel(name, io, label, display);
+          }
+          if (name == defaultChannel) {
+            if (io.length()) defaultIo = io;
+            if (!defaultLabel.length() && label.length()) defaultLabel = label;
+            if (!defaultDisplay.length() && display.length())
+              defaultDisplay = display;
+          }
+          if (channelCount >= (sizeof(channels) / sizeof(channels[0])))
+            break;
+        }
+      }
+
+      if (cfg.containsKey("channel_map")) {
+        JsonObject map = cfg["channel_map"].as<JsonObject>();
+        for (JsonPair kv : map) {
+          String name = String(kv.key().c_str());
+          if (channelExists(name)) continue;
+          String io;
+          String label;
+          String display;
+          JsonVariant value = kv.value();
+          if (value.is<const char *>()) {
+            const char *c = value.as<const char *>();
+            if (c && c[0]) io = String(c);
+          } else if (value.is<JsonObject>()) {
+            JsonObject obj = value.as<JsonObject>();
+            if (obj["io"].is<const char *>()) {
+              const char *c = obj["io"].as<const char *>();
+              if (c && c[0]) io = String(c);
+            }
+            if (obj["label"].is<const char *>()) {
+              const char *c = obj["label"].as<const char *>();
+              if (c && c[0]) label = String(c);
+            }
+            if (obj["display"].is<const char *>()) {
+              const char *c = obj["display"].as<const char *>();
+              if (c && c[0]) display = String(c);
+            }
+          }
+          addChannel(name, io, label, display);
+          if (name == defaultChannel) {
+            if (io.length()) defaultIo = io;
+            if (!defaultLabel.length() && label.length()) defaultLabel = label;
+            if (!defaultDisplay.length() && display.length())
+              defaultDisplay = display;
+          }
+          if (channelCount >= (sizeof(channels) / sizeof(channels[0])))
+            break;
+        }
+      }
+    }
+  }
+
+  if (!channelExists(defaultChannel)) {
+    addChannel(defaultChannel, defaultIo, defaultLabel, defaultDisplay);
+  }
+
+  if (sampleCount < 32) sampleCount = 32;
+  if (sampleCount > 400) sampleCount = 400;
+  if (timebaseMsPerDiv <= 0.0f) timebaseMsPerDiv = 10.0f;
+  if (voltsPerDiv <= 0.0f) voltsPerDiv = 1.0f;
+  if (defaultIo.length()) {
+    // Ensure fallback IO is propagated to all channels lacking a mapping.
+    for (size_t i = 0; i < channelCount; ++i) {
+      if (!channels[i].io.length()) channels[i].io = defaultIo;
+    }
+  }
+
+  if (channelCount == 0) {
+    m_server.send(500, "application/json",
+                  "{\"error\":\"no scope channels\"}");
+    return;
+  }
+
+  size_t docCapacity = 1024 + channelCount * sampleCount * 16;
+  if (docCapacity < 4096) docCapacity = 4096;
+  DynamicJsonDocument doc(docCapacity);
+  JsonObject root = doc.to<JsonObject>();
+  root["timebase_ms_per_div"] = timebaseMsPerDiv;
+  root["volts_per_div"] = voltsPerDiv;
+  JsonObject channelsObj = root.createNestedObject("channels");
+
+  JsonArray sampleArrays[sizeof(channels) / sizeof(channels[0])];
+  for (size_t i = 0; i < channelCount; ++i) {
+    JsonObject chObj = channelsObj.createNestedObject(channels[i].name);
+    chObj["label"] = channels[i].label;
+    chObj["display"] = channels[i].display;
+    chObj["io"] = channels[i].io;
+    sampleArrays[i] = chObj.createNestedArray("samples");
+  }
+
+  float totalSpanUs = timebaseMsPerDiv * 1000.0f * 10.0f;
+  uint32_t intervalUs = 0;
+  if (sampleCount > 1 && totalSpanUs > 0.0f) {
+    float raw = totalSpanUs / static_cast<float>(sampleCount - 1);
+    if (raw > 0.0f) {
+      intervalUs = static_cast<uint32_t>(raw);
+    }
+  }
+
+  auto waitInterval = [&](uint32_t us) {
+    if (us == 0) return;
+    if (us >= 1000) {
+      delay(us / 1000);
+      us %= 1000;
+    }
+    if (us > 0) delayMicroseconds(us);
+  };
+
+  for (size_t i = 0; i < sampleCount; ++i) {
+    for (size_t c = 0; c < channelCount; ++c) {
+      const ChannelDef &ch = channels[c];
+      int32_t raw = m_io->readRaw(ch.io);
+      float value = m_io->convert(ch.io, raw);
+      sampleArrays[c].add(value);
+    }
+    if (i + 1 < sampleCount) {
+      if (intervalUs > 0) {
+        waitInterval(intervalUs);
+      } else {
+        // Yield to keep Wi-Fi responsive during fast captures.
+        delay(0);
+      }
+    }
+    if ((i & 0x1F) == 0) {
+      yield();
+    }
+  }
+
   String response;
   serializeJson(doc, response);
   m_server.send(200, "application/json", response);
