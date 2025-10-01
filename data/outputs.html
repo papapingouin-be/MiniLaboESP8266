@@ -106,6 +106,17 @@
       cursor: pointer;
     }
 
+    .detail-panel .test-button {
+      justify-self: start;
+      border-radius: 999px;
+      border: 1px solid #1f7a4d;
+      background: #e6f6ed;
+      color: #0c572f;
+      padding: 0.45rem 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
     .actions button.save {
       background: #1f3d7a;
       color: #fff;
@@ -673,6 +684,44 @@
       return `${base} (HW ${hwMin}${unitSuffix} → ${hwMax}${unitSuffix})`;
     }
     return base;
+  }
+
+  function canTriggerTest(output) {
+    if (!output || !output.config) return false;
+    const pin = output.config.pin;
+    return typeof pin === 'string' && pin.trim().length > 0;
+  }
+
+  function triggerTest(output, button) {
+    if (!canTriggerTest(output)) {
+      setStatus('Impossible de lancer le test : broche non définie.', 'error');
+      return;
+    }
+    const pin = output.config.pin.trim();
+    const payload = {
+      pin,
+      type: output.type || ''
+    };
+    if (button) button.disabled = true;
+    fetch('/api/outputs/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json().catch(() => ({}));
+      })
+      .then(() => {
+        setStatus(`Test 5 Hz lancé sur ${pin}.`, 'ok');
+      })
+      .catch(err => {
+        console.error(err);
+        setStatus('Échec du test 5 Hz.', 'error');
+      })
+      .then(() => {
+        if (button) button.disabled = false;
+      });
   }
 
   function renderTable() {
@@ -1353,6 +1402,17 @@
 
     detailPanel.appendChild(title);
     detailPanel.appendChild(legend);
+
+    if (canTriggerTest(output)) {
+      const testButton = document.createElement('button');
+      testButton.type = 'button';
+      testButton.className = 'test-button';
+      testButton.textContent = 'Test 5 Hz';
+      testButton.addEventListener('click', () => {
+        triggerTest(output, testButton);
+      });
+      detailPanel.appendChild(testButton);
+    }
 
     if (output.type === 'pwm_rc') {
       const diagram = document.createElement('div');

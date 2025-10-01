@@ -13,6 +13,57 @@
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 
+namespace {
+struct PinMapEntry {
+  const char *label;
+  uint8_t gpio;
+};
+
+const PinMapEntry kPinMap[] = {
+    {"D0", 16}, {"D1", 5},  {"D2", 4},  {"D3", 0}, {"D4", 2},
+    {"D5", 14}, {"D6", 12}, {"D7", 13}, {"D8", 15},
+};
+
+int pinLabelToGpio(const String &label) {
+  for (const auto &entry : kPinMap) {
+    if (label.equalsIgnoreCase(entry.label)) {
+      return entry.gpio;
+    }
+  }
+
+  String trimmed = label;
+  trimmed.trim();
+  if (!trimmed.length()) return -1;
+
+  String upper = trimmed;
+  upper.toUpperCase();
+  if (upper.startsWith("GPIO")) {
+    String numeric = upper.substring(4);
+    bool digits = numeric.length() > 0;
+    for (size_t i = 0; i < numeric.length() && digits; ++i) {
+      char c = numeric.charAt(i);
+      if (c < '0' || c > '9') digits = false;
+    }
+    if (digits) {
+      int value = numeric.toInt();
+      if (value >= 0 && value <= 16) return value;
+    }
+  }
+
+  bool digits = true;
+  for (size_t i = 0; i < trimmed.length() && digits; ++i) {
+    char c = trimmed.charAt(i);
+    if (c < '0' || c > '9') digits = false;
+  }
+  if (digits) {
+    int value = trimmed.toInt();
+    if (value >= 0 && value <= 16) return value;
+  }
+
+  return -1;
+}
+} // namespace
+
 WebApi::WebApi(ConfigStore *config, IORegistry *ioReg, Dmm *dmm,
                FuncGen *funcGen, Logger *logger,
                FileWriteService *fileService)
@@ -40,6 +91,11 @@ void WebApi::begin() {
       "/api/io/snapshot", HTTP_GET,
       [this]() {
         handleIoSnapshot();
+      });
+  m_server.on(
+      "/api/outputs/test", HTTP_POST,
+      [this]() {
+        handleOutputsTest();
       });
   m_server.on(
       "/api/dmm", HTTP_GET,
@@ -162,6 +218,63 @@ void WebApi::handleIoSnapshot() {
   }
   String response;
   serializeJson(doc, response);
+  m_server.send(200, "application/json", response);
+}
+
+void WebApi::handleOutputsTest() {
+  String body = m_server.arg("plain");
+  if (!body.length()) {
+    m_server.send(400, "application/json",
+                  "{\"error\":\"missing body\"}");
+    return;
+  }
+
+  StaticJsonDocument<256> doc;
+  DeserializationError err = deserializeJson(doc, body);
+  if (err) {
+    m_server.send(400, "application/json",
+                  String("{\"error\":\"invalid JSON: ") + err.c_str() + "\"}");
+    return;
+  }
+
+  const char *pinRaw = doc["pin"];
+  if (!pinRaw || pinRaw[0] == '\0') {
+    m_server.send(400, "application/json",
+                  "{\"error\":\"missing pin\"}");
+    return;
+  }
+
+  String pinLabel = String(pinRaw);
+  pinLabel.trim();
+  int gpio = pinLabelToGpio(pinLabel);
+  if (gpio < 0) {
+    m_server.send(400, "application/json",
+                  "{\"error\":\"unsupported pin\"}");
+    return;
+  }
+
+  if (m_logger) {
+    m_logger->info(String(F("Test 5 Hz sur ")) + pinLabel + F(" (GPIO") +
+                   String(gpio) + F(")"));
+  }
+
+  pinMode(gpio, OUTPUT);
+  digitalWrite(gpio, LOW);
+
+  const uint8_t cycles = 10; // 2 secondes à 5 Hz
+  for (uint8_t i = 0; i < cycles; ++i) {
+    digitalWrite(gpio, HIGH);
+    delay(100);
+    digitalWrite(gpio, LOW);
+    delay(100);
+  }
+
+  digitalWrite(gpio, LOW);
+
+  StaticJsonDocument<64> responseDoc;
+  responseDoc["ok"] = true;
+  String response;
+  serializeJson(responseDoc, response);
   m_server.send(200, "application/json", response);
 }
 
