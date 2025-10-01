@@ -953,39 +953,109 @@
 
     /* --------- FUNCGEN --------- */
     async function loadIOForFunc(){
-      const r = await j('/api/io');
-      if(!r.ok) return;
-      const arr = await r.json();
       const sel = $('#func-target');
-      sel.innerHTML='';
-      arr.forEach(io=>{
-        const o=document.createElement('option'); o.value=io.id; o.textContent=io.id; sel.appendChild(o);
-      });
-      const cfg = await (await j('/api/config/funcgen')).json().catch(()=>null);
-      if(cfg){
-        $('#func-amp').value = cfg.amp ?? 50;
-        $('#func-off').value = cfg.offset ?? 0;
-        $('#func-freq').value = cfg.freq ?? 50;
-        $('#func-wave').value = cfg.wave ?? 'sine';
-        if(cfg.target){ sel.value = cfg.target; }
-        $('#func-target-pill').textContent = 'cible : ' + (sel.value||'—');
+      if(!sel) return;
+      let ids = [];
+      try{
+        const resp = await j('/api/io/snapshot');
+        if(resp.ok){
+          const payload = await resp.json();
+          if(payload && Array.isArray(payload.channels)){
+            ids = payload.channels.map(ch=>ch && typeof ch.id==='string'? ch.id : null).filter(Boolean);
+          }
+        }
+      }catch(err){
+        console.warn(err);
       }
+      if(!ids.length){
+        try{
+          const fallback = await fetch('io.json',{cache:'no-cache'});
+          if(fallback.ok){
+            const arr = await fallback.json();
+            if(Array.isArray(arr)){
+              ids = arr.map(entry=>entry && typeof entry.id==='string'? entry.id : null).filter(Boolean);
+            }
+          }
+        }catch(err){
+          console.warn(err);
+        }
+      }
+      sel.innerHTML='';
+      if(ids.length){
+        ids.forEach(id=>{
+          const opt=document.createElement('option');
+          opt.value=id;
+          opt.textContent=id;
+          sel.appendChild(opt);
+        });
+        sel.value = ids[0];
+      }else{
+        const opt=document.createElement('option');
+        opt.value='';
+        opt.textContent='—';
+        sel.appendChild(opt);
+      }
+      const cfg = await (async()=>{
+        try{
+          const cfgResp = await j('/api/config?area=funcgen');
+          if(cfgResp.ok){
+            return await cfgResp.json();
+          }
+        }catch(err){
+          console.warn(err);
+        }
+        try{
+          const fallback = await fetch('funcgen.json',{cache:'no-cache'});
+          if(fallback.ok){
+            return await fallback.json();
+          }
+        }catch(err){
+          console.warn(err);
+        }
+        return null;
+      })();
+      if(cfg && typeof cfg==='object'){
+        const ampInput = $('#func-amp');
+        const offInput = $('#func-off');
+        const freqInput = $('#func-freq');
+        const waveSelect = $('#func-wave');
+        if(ampInput) ampInput.value = typeof cfg.amp_pct === 'number' ? cfg.amp_pct : (ampInput.value||50);
+        if(offInput) offInput.value = typeof cfg.offset_pct === 'number' ? cfg.offset_pct : (offInput.value||0);
+        if(freqInput) freqInput.value = typeof cfg.freq === 'number' ? cfg.freq : (freqInput.value||50);
+        if(waveSelect) waveSelect.value = typeof cfg.type === 'string' ? cfg.type : (waveSelect.value||'sine');
+        if(typeof cfg.target === 'string' && ids.includes(cfg.target)){
+          sel.value = cfg.target;
+        }
+      }
+      $('#func-target-pill').textContent = 'cible : ' + (sel.value||'—');
     }
     async function applyFunc(){
+      const target = $('#func-target') ? $('#func-target').value : '';
+      const freqVal = parseFloat($('#func-freq') ? $('#func-freq').value : '0');
+      const ampVal = parseFloat($('#func-amp') ? $('#func-amp').value : '0');
+      const offsetVal = parseFloat($('#func-off') ? $('#func-off').value : '0');
+      const waveVal = $('#func-wave') ? $('#func-wave').value : 'sine';
       const payload = {
-        target: $('#func-target').value,
-        freq: parseFloat($('#func-freq').value),
-        amplitude: parseFloat($('#func-amp').value),
-        offset: parseFloat($('#func-off').value),
-        wave: $('#func-wave').value
+        type: waveVal,
+        freq: Number.isFinite(freqVal) ? freqVal : 0,
+        amp_pct: Number.isFinite(ampVal) ? ampVal : 0,
+        offset_pct: Number.isFinite(offsetVal) ? offsetVal : 0,
+        enabled: true
       };
+      if(target) payload.target = target;
       try{
         const r = await j('/api/funcgen',{method:'POST', body: JSON.stringify(payload)});
-        const ok = r.ok ? await r.json() : {success:false};
-        $('#func-status').textContent = ok.success ? 'Paramètres appliqués.' : 'Erreur d’application.';
-        $('#func-target-pill').textContent = 'cible : ' + (payload.target||'—');
+        let ok = null;
+        if(r.ok){
+          ok = await r.json().catch(()=>({}));
+        }
+        const success = r.ok && ok && (ok.ok === true || ok.success === true || ok.status === 'ok');
+        $('#func-status').textContent = success ? 'Paramètres appliqués.' : 'Erreur d’application.';
+        $('#func-target-pill').textContent = 'cible : ' + (target||'—');
       }catch(e){
+        console.warn(e);
         $('#func-status').textContent = 'Erreur réseau.';
+        $('#func-target-pill').textContent = 'cible : ' + (target||'—');
       }
     }
     $('#func-apply').addEventListener('click', applyFunc);
@@ -1022,6 +1092,7 @@
     let scopeUsingFallback = false;
     let scopeNextScopeApiRetry = 0;
     let scopeFallbackCache = null;
+    let scopeApiUnavailable = false;
 
     function formatVolt(value, suffix=''){
       if(value === null || value === undefined || Number.isNaN(value)) return '—';
@@ -1182,10 +1253,20 @@
       if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Envoi…'; }
       try{
         const r = await j('/api/scope/timebase',{method:'POST', body: JSON.stringify({ms_per_div: ms})});
-        if(!r.ok) throw new Error('bad');
+        if(!r.ok){
+          if(r.status === 404){
+            scopeApiUnavailable = true;
+            scopeNextScopeApiRetry = Number.POSITIVE_INFINITY;
+            if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Réglage non supporté.'; }
+            setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2500);
+            return;
+          }
+          throw new Error('bad');
+        }
         scopeTimebaseStatus.textContent = 'Synchronisé';
         setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 1500);
       }catch(e){
+        console.warn(e);
         if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Erreur de réglage.'; }
         setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2000);
       }
@@ -1238,10 +1319,21 @@
       if(scopeTraceColor && scopeSelectedChannel){
         scopeTraceColor.value = scopeChannelColors[scopeSelectedChannel] || scopeTraceColor.value;
       }
+      const targetFocus = scopeTraceChannelSelect || scopeTraceModal.querySelector('input, select, button');
+      if(targetFocus){
+        setTimeout(()=>{ targetFocus.focus(); }, 0);
+      }
     }
 
     function closeTraceModal(){
       if(!scopeTraceModal) return;
+      if(scopeTraceModal.contains(document.activeElement)){
+        if(scopeTraceOpen){
+          scopeTraceOpen.focus();
+        }else if(document.activeElement && typeof document.activeElement.blur === 'function'){
+          document.activeElement.blur();
+        }
+      }
       scopeTraceModal.classList.add('hidden');
       scopeTraceModal.setAttribute('aria-hidden','true');
     }
@@ -1410,19 +1502,33 @@
 
     async function loadScope(){
       const now = Date.now();
-      const shouldTryApi = !scopeUsingFallback || now >= scopeNextScopeApiRetry;
+      const shouldTryApi = !scopeApiUnavailable && (!scopeUsingFallback || now >= scopeNextScopeApiRetry);
       let data = null;
 
       if(shouldTryApi){
         try{
           const r = await j('/api/scope');
-          if(!r.ok) throw new Error('scope');
-          data = await r.json();
-          scopeUsingFallback = false;
-          scopeFallbackCache = null;
+          if(!r.ok){
+            if(r.status === 404){
+              scopeApiUnavailable = true;
+              scopeUsingFallback = true;
+              scopeNextScopeApiRetry = Number.POSITIVE_INFINITY;
+            }else{
+              scopeUsingFallback = true;
+              scopeNextScopeApiRetry = Date.now() + 5000;
+            }
+          }else{
+            data = await r.json();
+            scopeUsingFallback = false;
+            scopeFallbackCache = null;
+            scopeApiUnavailable = false;
+          }
         }catch(e){
+          console.warn(e);
           scopeUsingFallback = true;
-          scopeNextScopeApiRetry = Date.now() + 5000;
+          if(!scopeApiUnavailable){
+            scopeNextScopeApiRetry = Date.now() + 5000;
+          }
         }
       }
 
@@ -1454,21 +1560,45 @@
     /* --------- MATH EDITOR --------- */
     async function loadMath(){
       try{
-        const r = await j('/api/config/math');
-        if(!r.ok){ $('#math-status').textContent='Impossible de charger la config.'; return; }
-        const cfg = await r.json();
-        const expr = (cfg.expressions||[]).join('\n');
-        $('#math-text').value = expr;
-        $('#math-status').textContent='Config chargée.';
-      }catch(e){ $('#math-status').textContent='Erreur réseau.'; }
+        const r = await j('/api/config?area=math');
+        if(r.ok){
+          const cfg = await r.json();
+          const expressions = cfg && Array.isArray(cfg.expressions) ? cfg.expressions : [];
+          const expr = expressions.length ? expressions.join('\n') : '';
+          $('#math-text').value = expr;
+          $('#math-status').textContent='Config chargée.';
+          return;
+        }
+      }catch(e){
+        console.warn(e);
+      }
+      try{
+        const fallback = await fetch('math.json',{cache:'no-cache'});
+        if(fallback.ok){
+          const cfg = await fallback.json();
+          const expressions = Array.isArray(cfg)
+            ? cfg
+            : (cfg && Array.isArray(cfg.expressions) ? cfg.expressions : []);
+          const expr = expressions.length ? expressions.join('\n') : '';
+          $('#math-text').value = expr;
+          $('#math-status').textContent='Config locale chargée.';
+          return;
+        }
+      }catch(e){
+        console.warn(e);
+      }
+      $('#math-status').textContent='Impossible de charger la config.';
     }
     async function saveMath(){
       const lines = $('#math-text').value.split('\n').map(s=>s.trim()).filter(Boolean);
       const body = JSON.stringify({expressions: lines});
       try{
-        const r = await j('/api/config/math?area=math',{method:'PUT', body});
+        const r = await j('/api/config?area=math',{method:'PUT', body});
         $('#math-status').textContent = r.ok ? 'Enregistré.' : 'Erreur d’enregistrement.';
-      }catch(e){ $('#math-status').textContent='Erreur réseau.'; }
+      }catch(e){
+        console.warn(e);
+        $('#math-status').textContent='Erreur réseau.';
+      }
     }
     $('#math-load').addEventListener('click', loadMath);
     $('#math-save').addEventListener('click', saveMath);
