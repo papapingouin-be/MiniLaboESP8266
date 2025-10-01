@@ -395,19 +395,57 @@
       padding:12px 14px;
       border:1px dashed rgba(76,195,255,.35);
     }
-    .func-action-stack .btn.primary{
+    .func-action-stack .btn.primary,
+    .func-action-stack .btn.danger{
       align-self:flex-end;
       padding:12px 22px;
       font-size:14px;
       letter-spacing:.15em;
       text-transform:uppercase;
       border-radius:999px;
-      background:linear-gradient(130deg, rgba(61,217,158,.8) 0%, rgba(33,162,111,.95) 100%);
       border:none;
+    }
+    .func-action-stack .btn.primary{
+      background:linear-gradient(130deg, rgba(61,217,158,.8) 0%, rgba(33,162,111,.95) 100%);
       box-shadow:0 16px 34px rgba(27,160,112,.35), inset 0 0 0 1px rgba(6,35,23,.4);
+      color:#e6fff4;
     }
     .func-action-stack .btn.primary:hover{box-shadow:0 20px 40px rgba(27,160,112,.45)}
     .func-action-stack .btn.primary:focus-visible{outline:2px solid rgba(54,211,153,.7); outline-offset:4px}
+    .func-action-stack .btn.danger{
+      background:linear-gradient(130deg, rgba(255,114,114,.88) 0%, rgba(176,34,34,.95) 100%);
+      box-shadow:0 16px 34px rgba(176,34,34,.35), inset 0 0 0 1px rgba(55,7,7,.45);
+      color:#ffe5e5;
+    }
+    .func-action-stack .btn.danger:hover{box-shadow:0 20px 40px rgba(176,34,34,.45)}
+    .func-action-stack .btn.danger:focus-visible{outline:2px solid rgba(255,107,107,.75); outline-offset:4px}
+    .func-status-indicator{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:11px;
+      letter-spacing:.2em;
+      text-transform:uppercase;
+      color:#7a8aa6;
+      opacity:.9;
+      transition:color .2s ease, opacity .2s ease;
+    }
+    .func-status-indicator .dot{
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:#475569;
+      box-shadow:0 0 6px rgba(71,85,105,.5);
+      transition:background .2s ease, box-shadow .2s ease;
+    }
+    .func-status-indicator[data-state="inactive"]{color:#7a8aa6;}
+    .func-status-indicator[data-state="inactive"] .dot{background:#475569; box-shadow:0 0 6px rgba(71,85,105,.5);}
+    .func-status-indicator[data-state="active"]{color:var(--accent);}
+    .func-status-indicator[data-state="active"] .dot{background:var(--accent); box-shadow:0 0 10px rgba(54,211,153,.6);}
+    .func-status-indicator[data-state="pending"]{color:var(--warn);}
+    .func-status-indicator[data-state="pending"] .dot{background:var(--warn); box-shadow:0 0 10px rgba(255,184,107,.6);}
+    .func-status-indicator[data-state="error"]{color:var(--danger); opacity:1;}
+    .func-status-indicator[data-state="error"] .dot{background:var(--danger); box-shadow:0 0 10px rgba(255,107,107,.6);}
 
     /* DMM styles */
     .dmm-display{
@@ -492,6 +530,7 @@
     }
     .btn.primary{ border-color:#1f3b2f; background:linear-gradient(180deg,#1f3b2f,#15281f); color:#bff6dd}
     .btn.warn{ border-color:#3b2f1f; background:linear-gradient(180deg,#3b2f1f,#2a2117); color:#ffd7a7}
+    .btn.danger{ border-color:#4b1f1f; background:linear-gradient(180deg,#4b1f1f,#2b1313); color:#ffc6c6}
     .btn.active{border-color:#2f4b66; background:linear-gradient(180deg,#1d2738,#162131); box-shadow:0 0 0 1px rgba(76,195,255,.2), inset 0 1px 0 rgba(255,255,255,.08)}
     .row{display:flex; gap:10px}
     .row>*{flex:1}
@@ -758,6 +797,10 @@
                 <td class="func-action-cell" valign="top">
                   <div class="func-action-stack">
                     <button class="btn primary" id="func-apply">Lancer la sortie</button>
+                    <div class="func-status-indicator" id="func-output-status" data-state="inactive" role="status" aria-live="polite">
+                      <span class="dot" aria-hidden="true"></span>
+                      <span class="label">Sortie inactive</span>
+                    </div>
                     <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
                   </div>
                 </td>
@@ -1340,6 +1383,8 @@
     const funcSummary = $('#func-summary');
     const funcHint = $('#func-hint');
     const funcTargetPill = $('#func-target-pill');
+    const funcApplyBtn = $('#func-apply');
+    const funcStatusIndicator = $('#func-output-status');
 
     const FUNC_WAVE_CATALOG = {
       sine: {
@@ -1567,8 +1612,92 @@
       amp_pct: 50,
       offset_pct: 0,
       duty_pct: 50,
-      phase_deg: 0
+      phase_deg: 0,
+      enabled: false
     };
+
+    let funcApplying = false;
+    let funcStatusPollTimer = null;
+    let funcStatusPollStarted = false;
+
+    function renderFuncButton(enabled){
+      if(!funcApplyBtn) return;
+      const active = !!enabled;
+      funcApplyBtn.textContent = active ? 'STOP' : 'Lancer la sortie';
+      funcApplyBtn.classList.toggle('danger', active);
+      funcApplyBtn.classList.toggle('primary', !active);
+    }
+    function getFuncStatusDefault(state){
+      switch(state){
+        case 'active':
+          return 'Sortie active';
+        case 'pending':
+          return 'Action en cours…';
+        case 'error':
+          return 'Erreur de sortie';
+        default:
+          return 'Sortie inactive';
+      }
+    }
+    function updateFuncStatusDisplay(state, message){
+      if(!funcStatusIndicator) return;
+      const status = state || 'inactive';
+      funcStatusIndicator.dataset.state = status;
+      const label = funcStatusIndicator.querySelector('.label');
+      if(label){
+        label.textContent = message && message.length ? message : getFuncStatusDefault(status);
+      }
+    }
+    function setFuncEnabled(enabled, message){
+      funcState.enabled = !!enabled;
+      renderFuncButton(funcState.enabled);
+      updateFuncStatusDisplay(funcState.enabled ? 'active' : 'inactive', message);
+    }
+    async function fetchFuncStatus(target){
+      const params = new URLSearchParams();
+      if(target) params.set('target', target);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      try{
+        const resp = await j(`/api/funcgen${query}`);
+        if(resp.ok){
+          const payload = await resp.json().catch(()=>null);
+          if(payload && typeof payload === 'object') return payload;
+          return payload;
+        }
+      }catch(err){
+        console.warn(err);
+      }
+      try{
+        const fallback = await fetch('funcgen.json',{cache:'no-cache'});
+        if(fallback.ok){
+          return await fallback.json();
+        }
+      }catch(err){
+        console.warn(err);
+      }
+      return null;
+    }
+    async function refreshFuncStatus(){
+      if(funcApplying) return true;
+      const status = await fetchFuncStatus(funcState.target);
+      if(status && typeof status === 'object' && typeof status.enabled === 'boolean'){
+        const message = status.enabled ? 'Sortie active (confirmée)' : 'Sortie inactive (confirmée)';
+        setFuncEnabled(status.enabled, message);
+        return true;
+      }
+      updateFuncStatusDisplay('error','Impossible de vérifier la sortie');
+      return false;
+    }
+    function scheduleFuncStatusPolling(){
+      if(funcStatusPollTimer) clearTimeout(funcStatusPollTimer);
+      funcStatusPollTimer = setTimeout(async ()=>{
+        await refreshFuncStatus();
+        scheduleFuncStatusPolling();
+      }, 15000);
+    }
+
+    renderFuncButton(funcState.enabled);
+    updateFuncStatusDisplay('inactive');
 
     function formatNumber(value, decimals){
       const safeDecimals = Math.max(0, Math.min(6, Math.round(decimals ?? 0)));
@@ -2049,7 +2178,12 @@
         }
       });
     }
-    if(funcTargetSelect) funcTargetSelect.addEventListener('change', ()=>setFuncTarget(funcTargetSelect.value));
+    if(funcTargetSelect){
+      funcTargetSelect.addEventListener('change', ()=>{
+        setFuncTarget(funcTargetSelect.value);
+        refreshFuncStatus();
+      });
+    }
 
     async function loadIOForFunc(){
       if(!funcTargetSelect) return;
@@ -2096,6 +2230,7 @@
         if(typeof cfg.phase_deg === 'number') funcState.phase_deg = cfg.phase_deg;
         if(typeof cfg.type === 'string') funcState.wave = cfg.type;
         if(typeof cfg.target === 'string') funcState.target = cfg.target;
+        if(typeof cfg.enabled === 'boolean') funcState.enabled = cfg.enabled;
       }
       if(funcOutputs.length){
         const preferred = funcState.target && funcOutputs.some(o=>o.id === funcState.target) ? funcState.target : funcOutputs[0].id;
@@ -2104,34 +2239,59 @@
         funcTargetSelect.value = '';
       }
       setFuncTarget(funcTargetSelect.value);
+      setFuncEnabled(funcState.enabled, funcState.enabled ? 'Sortie active (config)' : 'Sortie inactive');
+      await refreshFuncStatus();
+      if(!funcStatusPollStarted){
+        scheduleFuncStatusPolling();
+        funcStatusPollStarted = true;
+      }
     }
     async function applyFunc(){
+      if(funcApplying) return;
       const target = funcTargetSelect ? funcTargetSelect.value : funcState.target;
       if(target) funcState.target = target;
+      const desiredEnabled = !funcState.enabled;
       const payload = {
         type: funcState.wave || 'sine',
         freq: Number.isFinite(funcState.freq) ? funcState.freq : 0,
         amp_pct: Number.isFinite(funcState.amp_pct) ? funcState.amp_pct : 0,
         offset_pct: Number.isFinite(funcState.offset_pct) ? funcState.offset_pct : 0,
-        enabled: true
+        enabled: desiredEnabled
       };
       if(Number.isFinite(funcState.duty_pct)) payload.duty_pct = funcState.duty_pct;
       if(Number.isFinite(funcState.phase_deg)) payload.phase_deg = funcState.phase_deg;
       if(target) payload.target = target;
+      renderFuncButton(desiredEnabled);
+      updateFuncStatusDisplay('pending', desiredEnabled ? 'Activation demandée…' : 'Arrêt demandé…');
+      if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
+      funcApplying = true;
       try{
         const r = await j('/api/funcgen',{method:'POST', body: JSON.stringify(payload)});
         let ok = null;
         if(r.ok){
           ok = await r.json().catch(()=>({}));
         }
-        const success = r.ok && ok && (ok.ok === true || ok.success === true || ok.status === 'ok');
-        if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
+        const okIsObject = ok && typeof ok === 'object';
+        const success = r.ok && (!okIsObject || ok.ok === true || ok.success === true || ok.status === 'ok' || typeof ok.enabled === 'boolean');
+        if(success){
+          const reportedEnabled = okIsObject && typeof ok.enabled === 'boolean' ? ok.enabled : desiredEnabled;
+          const message = okIsObject && typeof ok.message === 'string' && ok.message ? ok.message : (reportedEnabled ? 'Sortie active (confirmée)' : 'Sortie inactive (confirmée)');
+          setFuncEnabled(reportedEnabled, message);
+          setTimeout(()=>{ refreshFuncStatus(); }, 500);
+        }else{
+          renderFuncButton(funcState.enabled);
+          updateFuncStatusDisplay('error','Échec de la mise à jour de la sortie');
+          setTimeout(()=>{ refreshFuncStatus(); }, 1500);
+        }
       }catch(e){
         console.warn(e);
-        if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
+        renderFuncButton(funcState.enabled);
+        updateFuncStatusDisplay('error','Erreur de communication avec la sortie');
+      }finally{
+        funcApplying = false;
       }
     }
-    $('#func-apply').addEventListener('click', applyFunc);
+    if(funcApplyBtn) funcApplyBtn.addEventListener('click', applyFunc);
 
     /* --------- SCOPE (aperçu 1 canal) --------- */
     const scopeMeta = $('#scope-meta');
