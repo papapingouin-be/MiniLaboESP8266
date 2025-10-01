@@ -149,15 +149,15 @@
       padding:10px 12px;
       vertical-align:top;
     }
-    .func-layout .func-param-cell{
-      padding:0;
-      background:none;
-      border:none;
+    .func-param-stack{
       display:flex;
+      flex-direction:column;
+      gap:10px;
       align-items:center;
-      justify-content:center;
+      justify-content:flex-start;
+      padding:4px 0;
     }
-    .func-param-cell .func-param-btn{
+    .func-param-stack .func-param-btn{
       width:100%;
       height:100%;
       min-width:0;
@@ -167,7 +167,7 @@
       cursor:default;
       pointer-events:none;
     }
-    .func-param-cell .func-param-btn .symbol{font-size:18px}
+    .func-param-stack .func-param-btn .symbol{font-size:18px}
     .func-meta-cell{
       text-align:center;
       background:linear-gradient(160deg, rgba(13,19,30,.9) 0%, rgba(12,18,29,.8) 100%);
@@ -202,10 +202,10 @@
     .func-action-stack .func-hint{margin-top:auto}
     @media (max-width: 980px){
       #card-func .content{padding:12px}
-      .func-layout{border-spacing:4px}
-      .func-layout td{padding:8px 10px}
-      .func-param-cell .func-param-btn{padding:10px}
-      .func-param-cell .func-param-btn .symbol{font-size:16px}
+        .func-layout{border-spacing:4px}
+        .func-layout td{padding:8px 10px}
+        .func-param-stack .func-param-btn{padding:10px}
+        .func-param-stack .func-param-btn .symbol{font-size:16px}
     }
     .func-wave-btn{
       border:none;
@@ -354,18 +354,28 @@
     }
     .func-summary{
       display:flex;
-      align-items:center;
-      flex-wrap:nowrap;
-      gap:16px;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:8px;
       font-size:12px;
       color:#d0def6;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      min-height:32px;
+      min-height:48px;
       flex:1 1 auto;
       min-width:0;
     }
+    .func-summary.empty{justify-content:center; align-items:center; color:#64748b}
+    .func-summary-item{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:baseline;
+      gap:6px;
+    }
+    .func-summary-item.current .func-summary-label{color:#58e4ff}
+    .func-summary-label{font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#9aa6bb}
+    .func-summary-value{font-size:14px; letter-spacing:.04em; color:#e4f1ff}
+    .func-summary-value .unit{font-size:11px; margin-left:3px; letter-spacing:.12em; text-transform:uppercase; color:#7fbfff}
+    .func-summary-secondary{font-size:11px; color:#7a8aa6; opacity:.9}
+    .func-summary-empty{opacity:.7; font-style:italic}
     #func-hint,
     .func-output-type{display:none}
     .func-hint{
@@ -693,14 +703,30 @@
             </colgroup>
             <tbody>
               <tr>
-                <td class="func-param-cell">
-                  <span class="func-param-btn active">
-                    <span class="symbol">U</span>
-                    <span class="sr-only">Sortie sélectionnée</span>
-                  </span>
+                <td rowspan="4" colspan="1" valign="top">
+                  <div class="func-param-stack">
+                    <div class="func-param-btn active">
+                      <span class="symbol">U</span>
+                      <span class="sr-only">Sortie sélectionnée</span>
+                    </div>
+                    <div class="func-param-btn active">
+                      <span class="symbol">U<sub>0</sub></span>
+                      <span class="sr-only">Valeur courante</span>
+                    </div>
+                    <div class="func-param-btn active">
+                      <span class="symbol">F</span>
+                      <span class="sr-only">Fréquence</span>
+                    </div>
+                    <div class="func-param-btn active">
+                      <span class="symbol">D</span>
+                      <span class="sr-only">Paramètres</span>
+                    </div>
+                  </div>
                 </td>
                 <td class="func-meta-cell">
-                  <div class="func-summary" id="func-summary" aria-live="polite">—</div>
+                  <div class="func-summary empty" id="func-summary" aria-live="polite" role="list">
+                    <div class="func-summary-item func-summary-empty" role="listitem">—</div>
+                  </div>
                 </td>
                 <td class="func-output-cell">
                   <div class="func-output-box">
@@ -713,12 +739,6 @@
                 </td>
               </tr>
               <tr>
-                <td class="func-param-cell">
-                  <span class="func-param-btn active">
-                    <span class="symbol">U<sub>0</sub></span>
-                    <span class="sr-only">Valeur courante</span>
-                  </span>
-                </td>
                 <td class="func-display-cell" rowspan="2">
                   <div class="func-display">
                     <div class="func-main-value">
@@ -735,21 +755,8 @@
                   </div>
                 </td>
               </tr>
+              <tr><!-- spacer row for rowspan alignment --></tr>
               <tr>
-                <td class="func-param-cell">
-                  <span class="func-param-btn active">
-                    <span class="symbol">F</span>
-                    <span class="sr-only">Fréquence</span>
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td class="func-param-cell">
-                  <span class="func-param-btn active">
-                    <span class="symbol">D</span>
-                    <span class="sr-only">Paramètres</span>
-                  </span>
-                </td>
                 <td class="func-wave-cell">
                   <div class="func-param-zone">
                     <div class="func-params" id="func-param-buttons"></div>
@@ -758,7 +765,7 @@
                 </td>
                 <td class="func-action-cell">
                   <div class="func-action-stack">
-                    <div class="func-status" id="func-status">Prêt.</div>
+                    <div class="func-status">Prêt.</div>
                     <button class="btn primary" id="func-apply">Lancer la sortie</button>
                     <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
                   </div>
@@ -1340,7 +1347,7 @@
     const funcPlusBtn = $('#func-plus');
     const funcSummary = $('#func-summary');
     const funcHint = $('#func-hint');
-    const funcStatus = $('#func-status');
+    const funcStatus = document.querySelector('#card-func .func-status');
     const funcTargetPill = $('#func-target-pill');
 
     const FUNC_WAVE_CATALOG = {
@@ -1625,25 +1632,55 @@
       if(!funcSummary) return;
       const ctx = getFuncContext();
       const profile = ctx.profile;
-      funcSummary.textContent = '';
-      if(!profile || !Array.isArray(profile.parameters)){
-        funcSummary.textContent = '—';
+      funcSummary.innerHTML = '';
+      funcSummary.classList.remove('empty');
+      if(!profile || !Array.isArray(profile.parameters) || !profile.parameters.length){
+        funcSummary.classList.add('empty');
+        const empty = document.createElement('div');
+        empty.className = 'func-summary-item func-summary-empty';
+        empty.setAttribute('role','listitem');
+        empty.textContent = '—';
+        funcSummary.appendChild(empty);
         return;
       }
-      const parts = [];
+      let hasItem = false;
       profile.parameters.forEach(param=>{
-        if(param === funcState.currentParam) return;
         const def = FUNC_PARAM_DEFS[param];
         if(!def) return;
         const formatted = formatParam(param, ctx);
-        const mainValue = formatted.main + (formatted.unit ? ' ' + formatted.unit : '');
-        let piece = (def.label || param) + ' : ' + mainValue;
-        if(formatted.secondary){
-          piece += ' (' + formatted.secondary + ')';
+        const item = document.createElement('div');
+        item.className = 'func-summary-item' + (param === funcState.currentParam ? ' current' : '');
+        item.setAttribute('role','listitem');
+        const label = document.createElement('span');
+        label.className = 'func-summary-label';
+        label.textContent = def.label || param;
+        const value = document.createElement('span');
+        value.className = 'func-summary-value';
+        value.textContent = formatted.main;
+        if(formatted.unit){
+          const unit = document.createElement('span');
+          unit.className = 'unit';
+          unit.textContent = formatted.unit;
+          value.appendChild(unit);
         }
-        parts.push(piece);
+        item.append(label, value);
+        if(formatted.secondary){
+          const secondary = document.createElement('span');
+          secondary.className = 'func-summary-secondary';
+          secondary.textContent = formatted.secondary;
+          item.appendChild(secondary);
+        }
+        funcSummary.appendChild(item);
+        hasItem = true;
       });
-      funcSummary.textContent = parts.length ? parts.join(' • ') : '—';
+      if(!hasItem){
+        funcSummary.classList.add('empty');
+        const empty = document.createElement('div');
+        empty.className = 'func-summary-item func-summary-empty';
+        empty.setAttribute('role','listitem');
+        empty.textContent = '—';
+        funcSummary.appendChild(empty);
+      }
     }
     function renderFuncParamButtons(profile){
       if(!funcParamButtons) return;
