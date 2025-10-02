@@ -40,7 +40,19 @@ private:
     float amp;    // amplitude as fraction (0–1)
     float offset; // offset as fraction (0–1)
     bool enabled;
+    String targetId;
   } m_settings;
+
+  enum OutputDriver { DRIVER_NONE, DRIVER_MCP4725, DRIVER_PWM };
+
+  struct TargetBinding {
+    OutputDriver driver;
+    String id;
+    uint8_t gpio;
+    uint32_t pwmFreq;
+    uint8_t mcpAddress;
+    bool available;
+  } m_target;
 
   Logger *m_logger;
   ConfigStore *m_config;
@@ -51,11 +63,17 @@ private:
   bool m_zeroFreqLogged;
   bool m_lastEnabledState;
   float m_lastDcLevelLogged;
+  float m_lastOutputValue;
+  bool m_noTargetLogged;
 
   // Load settings from funcgen.json. Called during begin().
   void loadFromConfig();
   // Compute waveform sample at current phase.
   float waveformSample(float phase);
+  void resolveTargetBinding();
+  int labelToGpio(const String &label);
+  void writeOutput(float value);
+  void ensureOutputDisabled();
 };
 
 #endif // MINILABOESP_FUNCGEN_H

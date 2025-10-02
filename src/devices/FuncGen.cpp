@@ -5,26 +5,43 @@
 #include "core/Logger.h"
 #include "core/ConfigStore.h"
 #include <math.h>
+#include <stdlib.h>
 
 FuncGen::FuncGen(Logger *logger, ConfigStore *config)
-    : m_settings{SINE, 0.0f, 0.0f, 0.5f, false}, m_logger(logger),
-      m_config(config), m_phase(0.0f), m_lastMicros(0),
+    : m_logger(logger), m_config(config), m_phase(0.0f), m_lastMicros(0),
       m_disabledLogged(false), m_zeroFreqLogged(false),
-      m_lastEnabledState(false), m_lastDcLevelLogged(-1.0f) {}
+      m_lastEnabledState(false), m_lastDcLevelLogged(-1.0f),
+      m_lastOutputValue(-1.0f), m_noTargetLogged(false) {
+  m_settings.type = SINE;
+  m_settings.freq = 0.0f;
+  m_settings.amp = 0.0f;
+  m_settings.offset = 0.5f;
+  m_settings.enabled = false;
+  m_settings.targetId = F("DAC0");
+
+  m_target.driver = DRIVER_NONE;
+  m_target.id = F("");
+  m_target.gpio = 0xFF;
+  m_target.pwmFreq = 0;
+  m_target.mcpAddress = 0x60;
+  m_target.available = false;
+}
 
 void FuncGen::begin() {
-  // Initialise the DAC. It defaults to address 0x60. If the device is
-  // missing or not connected begin() will return false. We ignore
-  // failure because the user may not have connected a DAC.
+  // Initialise the DAC with the default address. The actual address can
+  // be overridden by the selected target configuration when
+  // resolveTargetBinding() runs.
   m_dac.begin(0x60);
   // Load initial settings from funcgen.json
   loadFromConfig();
+  resolveTargetBinding();
   // Set initial lastMicros to current time
   m_lastMicros = micros();
   m_disabledLogged = false;
   m_zeroFreqLogged = false;
   m_lastEnabledState = m_settings.enabled;
   m_lastDcLevelLogged = -1.0f;
+  m_lastOutputValue = -1.0f;
 }
 
 void FuncGen::loadFromConfig() {
@@ -48,6 +65,10 @@ void FuncGen::loadFromConfig() {
   m_settings.amp = amp_pct / 100.0f;
   m_settings.offset = offset_pct / 100.0f;
   m_settings.enabled = doc["enabled"] | false;
+  const char *target = doc["target"] | "DAC0";
+  if (target) {
+    m_settings.targetId = String(target);
+  }
 }
 
 void FuncGen::updateSettings(const JsonDocument &doc) {
@@ -88,6 +109,12 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
   if (doc.containsKey("enabled")) {
     m_settings.enabled = doc["enabled"];
   }
+  if (doc.containsKey("target")) {
+    const char *target = doc["target"].as<const char *>();
+    if (target && target[0]) {
+      m_settings.targetId = String(target);
+    }
+  }
 
   if (m_logger) {
     String summary = String(F("FuncGen settings => type="));
@@ -113,6 +140,10 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
     summary += String(m_settings.offset, 3);
     summary += F(", enabled=");
     summary += (m_settings.enabled ? F("true") : F("false"));
+    if (m_settings.targetId.length()) {
+      summary += F(", target=");
+      summary += m_settings.targetId;
+    }
     m_logger->info(summary);
 
     if (old.enabled && !m_settings.enabled) {
@@ -124,6 +155,9 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
 
   m_disabledLogged = false;
   m_zeroFreqLogged = false;
+  if (!old.targetId.equalsIgnoreCase(m_settings.targetId)) {
+    resolveTargetBinding();
+  }
   // Persist settings to funcgen.json
   JsonDocument &cfg = m_config->getConfig("funcgen");
   const char *typeName = "sine";
@@ -146,6 +180,11 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
   cfg["amp_pct"] = (int)(m_settings.amp * 100);
   cfg["offset_pct"] = (int)(m_settings.offset * 100);
   cfg["enabled"] = m_settings.enabled;
+  if (m_settings.targetId.length()) {
+    cfg["target"] = m_settings.targetId;
+  } else {
+    cfg.remove("target");
+  }
   m_config->updateConfig("funcgen", cfg);
 }
 
@@ -158,6 +197,7 @@ void FuncGen::loop() {
     m_lastEnabledState = m_settings.enabled;
     if (!m_settings.enabled) {
       m_lastDcLevelLogged = -1.0f;
+      ensureOutputDisabled();
     }
   }
   if (!m_settings.enabled) {
@@ -186,8 +226,7 @@ void FuncGen::loop() {
         m_lastDcLevelLogged = value;
       }
     }
-    uint16_t dacVal = (uint16_t)(value * 4095.0f + 0.5f);
-    m_dac.setVoltage(dacVal, false);
+    writeOutput(value);
     return;
   }
 
@@ -212,9 +251,7 @@ void FuncGen::loop() {
   // Clamp to [0,1]
   if (value < 0.0f) value = 0.0f;
   if (value > 1.0f) value = 1.0f;
-  // Convert to 12-bit value for DAC
-  uint16_t dacVal = (uint16_t)(value * 4095.0f + 0.5f);
-  m_dac.setVoltage(dacVal, false);
+  writeOutput(value);
 }
 
 float FuncGen::waveformSample(float phase) {
@@ -234,4 +271,244 @@ float FuncGen::waveformSample(float phase) {
   default:
     return 0.0f;
   }
+}
+
+void FuncGen::resolveTargetBinding() {
+  m_target.driver = DRIVER_NONE;
+  m_target.available = false;
+  m_target.id = m_settings.targetId;
+  m_target.gpio = 0xFF;
+  m_target.pwmFreq = 0;
+  m_target.mcpAddress = 0x60;
+  m_noTargetLogged = false;
+  m_lastOutputValue = -1.0f;
+
+  if (!m_config) {
+    return;
+  }
+
+  JsonDocument &doc = m_config->getConfig("outputs");
+  if (!doc.is<JsonArray>()) {
+    if (m_logger) {
+      m_logger->warning(F("FuncGen: outputs config is not an array"));
+    }
+    return;
+  }
+
+  JsonArray arr = doc.as<JsonArray>();
+  for (JsonVariant v : arr) {
+    if (!v.is<JsonObject>()) {
+      continue;
+    }
+    JsonObject obj = v.as<JsonObject>();
+    const char *id = obj["id"].as<const char *>();
+    if (!id || !m_settings.targetId.equalsIgnoreCase(id)) {
+      continue;
+    }
+
+    const char *type = obj["type"].as<const char *>();
+    JsonObject cfg = obj["config"].is<JsonObject>()
+                         ? obj["config"].as<JsonObject>()
+                         : JsonObject();
+
+    if (type && strcasecmp(type, "mcp4725") == 0) {
+      uint8_t address = 0x60;
+      if (cfg.containsKey("address")) {
+        if (cfg["address"].is<const char *>()) {
+          const char *addrStr = cfg["address"].as<const char *>();
+          if (addrStr) {
+            address = (uint8_t)strtol(addrStr, nullptr, 0);
+          }
+        } else if (cfg["address"].is<int>()) {
+          address = (uint8_t)cfg["address"].as<int>();
+        }
+      }
+      m_target.driver = DRIVER_MCP4725;
+      m_target.available = true;
+      m_target.mcpAddress = address;
+      m_dac.begin(address);
+      if (m_logger) {
+        String addrStr = String(address, HEX);
+        addrStr.toUpperCase();
+        if (addrStr.length() < 2) {
+          addrStr = "0" + addrStr;
+        }
+        m_logger->info(String(F("FuncGen target MCP4725 @0x")) + addrStr);
+      }
+      return;
+    }
+
+    if (type && (strcasecmp(type, "pwm_rc") == 0 ||
+                 strcasecmp(type, "pwm_0_10v") == 0 ||
+                 strcasecmp(type, "charge_pump_doubler") == 0)) {
+      String pinLabel;
+      if (cfg["pin"].is<const char *>()) {
+        const char *pinStr = cfg["pin"].as<const char *>();
+        if (pinStr) pinLabel = String(pinStr);
+      } else if (cfg["pin"].is<int>()) {
+        pinLabel = String(cfg["pin"].as<int>());
+      }
+      int gpio = labelToGpio(pinLabel);
+      if (gpio < 0) {
+        if (m_logger) {
+          m_logger->warning(String(F("FuncGen: invalid GPIO for target ")) +
+                            m_settings.targetId);
+        }
+        return;
+      }
+      uint32_t freq = 0;
+      if (cfg["frequency"].is<uint32_t>()) {
+        freq = cfg["frequency"].as<uint32_t>();
+      } else if (cfg["frequency"].is<float>()) {
+        freq = (uint32_t)(cfg["frequency"].as<float>() + 0.5f);
+      } else if (cfg["pwm"].is<JsonObject>()) {
+        JsonObject pwmObj = cfg["pwm"].as<JsonObject>();
+        if (pwmObj["frequency"].is<uint32_t>()) {
+          freq = pwmObj["frequency"].as<uint32_t>();
+        } else if (pwmObj["frequency"].is<float>()) {
+          freq = (uint32_t)(pwmObj["frequency"].as<float>() + 0.5f);
+        }
+      }
+      if (freq == 0) {
+        if (strcasecmp(type, "pwm_rc") == 0) {
+          freq = 5000;
+        } else if (strcasecmp(type, "pwm_0_10v") == 0) {
+          freq = 2000;
+        } else {
+          freq = 4000;
+        }
+      }
+
+      pinMode(gpio, OUTPUT);
+      analogWriteRange(1023);
+      analogWriteFreq(freq);
+      analogWrite(gpio, 0);
+
+      m_target.driver = DRIVER_PWM;
+      m_target.available = true;
+      m_target.gpio = (uint8_t)gpio;
+      m_target.pwmFreq = freq;
+      if (m_logger) {
+        m_logger->info(String(F("FuncGen target PWM sur GPIO")) +
+                       String(gpio) + F(" @") + String(freq) + F("Hz"));
+      }
+      return;
+    }
+
+    if (m_logger) {
+      m_logger->warning(String(F("FuncGen: unsupported target type ")) +
+                        (type ? type : "?"));
+    }
+    return;
+  }
+
+  if (m_logger) {
+    m_logger->warning(String(F("FuncGen: cible introuvable ")) +
+                      m_settings.targetId);
+  }
+}
+
+int FuncGen::labelToGpio(const String &label) {
+  if (!label.length()) {
+    return -1;
+  }
+  String trimmed = label;
+  trimmed.trim();
+  if (!trimmed.length()) {
+    return -1;
+  }
+
+  struct PinMapEntry {
+    const char *label;
+    uint8_t gpio;
+  };
+  static const PinMapEntry map[] = {{"D0", 16}, {"D1", 5},  {"D2", 4},
+                                    {"D3", 0},  {"D4", 2},  {"D5", 14},
+                                    {"D6", 12}, {"D7", 13}, {"D8", 15}};
+  for (const auto &entry : map) {
+    if (trimmed.equalsIgnoreCase(entry.label)) {
+      return entry.gpio;
+    }
+  }
+
+  String upper = trimmed;
+  upper.toUpperCase();
+  if (upper.startsWith("GPIO")) {
+    String numeric = upper.substring(4);
+    if (numeric.length()) {
+      return numeric.toInt();
+    }
+  }
+
+  bool digits = true;
+  for (size_t i = 0; i < trimmed.length(); ++i) {
+    char c = trimmed.charAt(i);
+    if (c < '0' || c > '9') {
+      digits = false;
+      break;
+    }
+  }
+  if (digits) {
+    return trimmed.toInt();
+  }
+  return -1;
+}
+
+void FuncGen::writeOutput(float value) {
+  if (!m_target.available || m_target.driver == DRIVER_NONE) {
+    if (m_logger && !m_noTargetLogged) {
+      m_logger->warning(String(F("FuncGen: aucune sortie active (")) +
+                        (m_settings.targetId.length() ? m_settings.targetId
+                                                       : String("")) +
+                        F(")"));
+      m_noTargetLogged = true;
+    }
+    return;
+  }
+
+  if (value < 0.0f) value = 0.0f;
+  if (value > 1.0f) value = 1.0f;
+
+  if (m_lastOutputValue >= 0.0f && fabsf(m_lastOutputValue - value) < 0.0005f) {
+    return;
+  }
+
+  switch (m_target.driver) {
+  case DRIVER_MCP4725: {
+    uint16_t dacVal = (uint16_t)(value * 4095.0f + 0.5f);
+    m_dac.setVoltage(dacVal, false);
+    break;
+  }
+  case DRIVER_PWM: {
+    uint16_t pwmVal = (uint16_t)(value * 1023.0f + 0.5f);
+    analogWrite(m_target.gpio, pwmVal);
+    break;
+  }
+  case DRIVER_NONE:
+  default:
+    break;
+  }
+
+  m_lastOutputValue = value;
+}
+
+void FuncGen::ensureOutputDisabled() {
+  if (!m_target.available) {
+    return;
+  }
+  if (m_lastOutputValue >= 0.0f && fabsf(m_lastOutputValue) < 0.0005f) {
+    return;
+  }
+  switch (m_target.driver) {
+  case DRIVER_MCP4725:
+    m_dac.setVoltage(0, false);
+    break;
+  case DRIVER_PWM:
+    analogWrite(m_target.gpio, 0);
+    break;
+  case DRIVER_NONE:
+  default:
+    break;
+  }
+  m_lastOutputValue = 0.0f;
 }
