@@ -29,7 +29,7 @@ public:
 
   // Produce a snapshot of all configured DMM channels. The returned
   // document contains an array named "channels" with objects:
-  // { "id": <string>, "raw": <int>, "value": <float>, "unit": <string> }.
+  // { "id": <string>, "raw": <number>, "value": <float>, "unit": <string> }.
   void getSnapshot(JsonDocument &doc);
 
 private:

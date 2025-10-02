@@ -46,6 +46,58 @@
       padding: 0.4rem 0.6rem;
     }
 
+    table#ioTable td[data-field="remote"] {
+      min-width: 220px;
+    }
+
+    .remote-summary {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #1f3d7a;
+    }
+
+    .remote-summary.empty {
+      font-weight: 400;
+      color: #6c7895;
+      font-style: italic;
+    }
+
+    .remote-status {
+      font-size: 0.78rem;
+      margin-top: 0.35rem;
+      color: #5a678b;
+    }
+
+    .remote-status.online {
+      color: #0f8c52;
+    }
+
+    .remote-status.stale {
+      color: #b35c00;
+    }
+
+    .remote-status.waiting {
+      color: #6d789c;
+      font-style: italic;
+    }
+
+    .remote-status.disabled,
+    .remote-status.empty {
+      color: #7d86a3;
+    }
+
+    td[data-field="remote"][data-status="online"] {
+      background: #f1fff5;
+    }
+
+    td[data-field="remote"][data-status="stale"] {
+      background: #fff7ed;
+    }
+
+    td[data-field="remote"][data-status="waiting"] {
+      background: #f6f8ff;
+    }
+
     table#ioTable tbody tr.selected {
       outline: 2px solid #0059ff;
       outline-offset: -2px;
@@ -468,6 +520,7 @@
             <th>ID</th>
             <th>Type</th>
             <th>Index</th>
+            <th>Source distante</th>
             <th>k</th>
             <th>b</th>
             <th>Mesure brute</th>
@@ -627,6 +680,7 @@
     { type: 'math', label: 'Calcul mathématique' }
   ];
   const TYPE_DATALIST_ID = 'channelTypeOptions';
+  const NBSP = '\u00a0';
 
   let selectedRow = null;
   let lastComputation = null;
@@ -634,6 +688,7 @@
   let hardwarePromise = null;
   let snapshotTimer = null;
   let latestSnapshotRaw = new Map();
+  let latestSnapshotRemote = new Map();
   const LOG_MAX_ENTRIES = 200;
   let logEntries = [];
   let snapshotLogCount = 0;
@@ -683,6 +738,7 @@
     } else if (Object.prototype.hasOwnProperty.call(tr.dataset, 'remote')) {
       delete tr.dataset.remote;
     }
+    syncRemoteCell(tr);
   }
 
   function remoteMatchesSelection(remote, device, input) {
@@ -721,6 +777,160 @@
       return 'Aucune entrée distante sélectionnée.';
     }
     return parts.join(' · ');
+  }
+
+  function formatRemoteAge(ageMs) {
+    if (!Number.isFinite(ageMs) || ageMs < 0) {
+      return '';
+    }
+    if (ageMs < 1000) {
+      return `${Math.round(ageMs)}${NBSP}ms`;
+    }
+    const seconds = Math.floor(ageMs / 1000);
+    if (seconds < 60) {
+      return `${seconds}${NBSP}s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      const remainingSeconds = seconds % 60;
+      if (remainingSeconds) {
+        return `${minutes}${NBSP}min${NBSP}${remainingSeconds}${NBSP}s`;
+      }
+      return `${minutes}${NBSP}min`;
+    }
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      const remainingMinutes = minutes % 60;
+      if (remainingMinutes) {
+        return `${hours}${NBSP}h${NBSP}${remainingMinutes}${NBSP}min`;
+      }
+      return `${hours}${NBSP}h`;
+    }
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    if (remainingHours) {
+      return `${days}${NBSP}j${NBSP}${remainingHours}${NBSP}h`;
+    }
+    return `${days}${NBSP}j`;
+  }
+
+  function updateRemoteStatusCell(tr) {
+    if (!tr) return;
+    const cell = tr.querySelector('td[data-field="remote"]');
+    if (!cell) return;
+    const summaryEl = cell.querySelector('.remote-summary');
+    const statusEl = cell.querySelector('.remote-status');
+    const remoteConfig = getRowRemote(tr);
+    if (summaryEl) {
+      if (remoteConfig) {
+        summaryEl.textContent = formatRemoteSummary(remoteConfig);
+        summaryEl.classList.remove('empty');
+      } else {
+        summaryEl.textContent = 'Aucune source distante.';
+        summaryEl.classList.add('empty');
+      }
+    }
+    if (!statusEl) {
+      cell.dataset.status = '';
+      return;
+    }
+    const typeInput = tr.querySelector('td[data-field="type"] input');
+    const typeValue = typeInput ? typeInput.value.trim().toLowerCase() : '';
+    if (!isUdpPanelType(typeValue)) {
+      statusEl.textContent = 'Non applicable pour ce type.';
+      statusEl.className = 'remote-status disabled';
+      cell.dataset.status = 'disabled';
+      return;
+    }
+    if (!remoteConfig) {
+      statusEl.textContent = 'Sélectionnez une source distante.';
+      statusEl.className = 'remote-status waiting';
+      cell.dataset.status = 'waiting';
+      return;
+    }
+    const idInput = tr.querySelector('td[data-field="id"] input');
+    const idValue = idInput ? idInput.value.trim() : '';
+    let snapshot = null;
+    if (idValue.length && latestSnapshotRemote.has(idValue)) {
+      snapshot = latestSnapshotRemote.get(idValue);
+    }
+    if (!snapshot || typeof snapshot !== 'object') {
+      statusEl.textContent = 'En attente de paquets UDP.';
+      statusEl.className = 'remote-status waiting';
+      cell.dataset.status = 'waiting';
+      return;
+    }
+    const status = typeof snapshot.status === 'string' ? snapshot.status : '';
+    const age = Number(snapshot.age_ms);
+    const ageLabel = formatRemoteAge(age);
+    const hasLastValue = Number.isFinite(snapshot.last_value);
+    const hasLastRaw = Number.isFinite(snapshot.last_raw);
+    const hostCandidates = [];
+    if (typeof snapshot.source_hostname === 'string' && snapshot.source_hostname.trim().length) {
+      hostCandidates.push(snapshot.source_hostname.trim());
+    }
+    if (typeof snapshot.source_ip === 'string' && snapshot.source_ip.trim().length) {
+      hostCandidates.push(snapshot.source_ip.trim());
+    }
+    if (typeof snapshot.source_mac === 'string' && snapshot.source_mac.trim().length) {
+      hostCandidates.push(snapshot.source_mac.trim());
+    }
+    const hostLabel = hostCandidates.length ? hostCandidates[0] : '';
+    if (summaryEl && remoteConfig) {
+      const configHostParts = [];
+      if (typeof remoteConfig.hostname === 'string' && remoteConfig.hostname.trim().length) {
+        configHostParts.push(remoteConfig.hostname.trim());
+      }
+      if (typeof remoteConfig.mac === 'string' && remoteConfig.mac.trim().length) {
+        configHostParts.push(remoteConfig.mac.trim());
+      }
+      if (typeof remoteConfig.ip === 'string' && remoteConfig.ip.trim().length) {
+        configHostParts.push(remoteConfig.ip.trim());
+      }
+      if (!configHostParts.length && hostLabel) {
+        summaryEl.textContent = `${formatRemoteSummary(remoteConfig)} · ${hostLabel}`;
+      }
+    }
+    let statusText = '';
+    let statusClass = status || 'waiting';
+    if (status === 'online') {
+      statusText = 'Actif';
+      if (ageLabel) statusText += ` (${ageLabel})`;
+      if (hasLastValue) {
+        statusText += ` · Dernière valeur${NBSP}: ${formatNumber(snapshot.last_value)}`;
+      } else if (hasLastRaw) {
+        statusText += ` · Dernière mesure${NBSP}: ${formatNumber(snapshot.last_raw)}`;
+      }
+      if (hostLabel) {
+        statusText += ` · Source${NBSP}: ${hostLabel}`;
+      }
+      statusClass = 'online';
+    } else if (status === 'stale') {
+      statusText = ageLabel ? `Signal inactif (${ageLabel})` : 'Signal inactif';
+      if (hasLastValue) {
+        statusText += ` · Dernière valeur${NBSP}: ${formatNumber(snapshot.last_value)}`;
+      } else if (hasLastRaw) {
+        statusText += ` · Dernière mesure${NBSP}: ${formatNumber(snapshot.last_raw)}`;
+      }
+      if (hostLabel) {
+        statusText += ` · Source${NBSP}: ${hostLabel}`;
+      }
+      statusClass = 'stale';
+    } else if (status === 'waiting') {
+      statusText = 'En attente de paquets UDP.';
+      statusClass = 'waiting';
+    } else {
+      statusText = 'Statut inconnu.';
+      statusClass = 'waiting';
+    }
+    statusEl.textContent = statusText;
+    statusEl.className = `remote-status ${statusClass}`;
+    cell.dataset.status = statusClass;
+  }
+
+  function syncRemoteCell(tr) {
+    if (!tr) return;
+    updateRemoteStatusCell(tr);
   }
 
   function renderUdpDevices(devices, selectedRemote) {
@@ -845,6 +1055,9 @@
     const summaryEl = document.getElementById('udpSelectionSummary');
     const statusEl = document.getElementById('udpScanStatus');
     if (!panel) return;
+    if (tr) {
+      syncRemoteCell(tr);
+    }
     if (!isUdpHardwareProfileSelected()) {
       panel.hidden = true;
       if (summaryEl) {
@@ -921,6 +1134,7 @@
     if (selectedRow === tr) {
       updateUdpPanelContext(tr);
     }
+    syncRemoteCell(tr);
     const labelParts = [];
     if (remoteInfo.channelId) labelParts.push(remoteInfo.channelId);
     if (remoteInfo.hostname) labelParts.push(remoteInfo.hostname);
@@ -1256,10 +1470,11 @@
       }
     }
     refreshValueColumn();
-    if (!isUdpType(type)) {
+    syncRemoteCell(tr);
+    if (!isUdpPanelType(type)) {
       setRowRemote(tr, null);
       if (selectedRow === tr) {
-        updateUdpPanelContext(null);
+        updateUdpPanelContext(tr);
       }
     } else if (selectedRow === tr) {
       updateUdpPanelContext(tr);
@@ -1353,6 +1568,7 @@
       const valueSpan = tr.querySelector('td[data-field="value"] span');
       if (rawSpan) rawSpan.textContent = '—';
       if (valueSpan) valueSpan.textContent = '—';
+      updateRemoteStatusCell(tr);
       if (!idInput) {
         return;
       }
@@ -1376,6 +1592,7 @@
       }
       const computed = kVal * raw + bVal;
       valueSpan.textContent = formatNumber(computed);
+      updateRemoteStatusCell(tr);
     });
   }
 
@@ -1389,6 +1606,7 @@
     }
     let success = false;
     let map = latestSnapshotRaw;
+    let remoteMap = latestSnapshotRemote;
     try {
       const res = await fetch('/api/io/snapshot');
       if (!res.ok) {
@@ -1396,6 +1614,7 @@
       }
       const data = await res.json();
       map = new Map();
+      remoteMap = new Map();
       if (data && Array.isArray(data.channels)) {
         data.channels.forEach(ch => {
           if (!ch || typeof ch.id !== 'string') return;
@@ -1403,10 +1622,14 @@
           if (Number.isFinite(raw)) {
             map.set(ch.id, raw);
           }
+          if (ch && typeof ch.remote === 'object' && ch.remote !== null) {
+            remoteMap.set(ch.id, ch.remote);
+          }
         });
       }
       const hadErrorBefore = snapshotErrorNotified;
       latestSnapshotRaw = map;
+      latestSnapshotRemote = remoteMap;
       snapshotErrorNotified = false;
       success = true;
       if (!silent) {
@@ -1521,6 +1744,18 @@
     indexCell.dataset.field = 'index';
     tr.appendChild(indexCell);
 
+    const remoteCell = document.createElement('td');
+    remoteCell.dataset.field = 'remote';
+    const remoteSummary = document.createElement('div');
+    remoteSummary.className = 'remote-summary empty';
+    remoteSummary.textContent = 'Aucune source distante.';
+    remoteCell.appendChild(remoteSummary);
+    const remoteStatus = document.createElement('div');
+    remoteStatus.className = 'remote-status waiting';
+    remoteStatus.textContent = 'Non applicable pour ce type.';
+    remoteCell.appendChild(remoteStatus);
+    tr.appendChild(remoteCell);
+
     const kCell = document.createElement('td');
     kCell.dataset.field = 'k';
     const kInput = document.createElement('input');
@@ -1632,6 +1867,7 @@
       unitInput.dataset.autofill = unitInput.value.trim().length ? 'false' : 'true';
     });
 
+    syncRemoteCell(tr);
     attachRowHandlers(tr);
     return tr;
   }
@@ -1728,7 +1964,7 @@
         unit
       };
       const remoteInfo = getRowRemote(tr);
-      if (remoteInfo && isUdpType(type)) {
+      if (remoteInfo && isUdpPanelType(type)) {
         rowData.remote = remoteInfo;
       }
       payload.push(rowData);

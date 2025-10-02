@@ -37,7 +37,7 @@ void Dmm::getSnapshot(JsonDocument &doc) {
   JsonArray arr = doc.createNestedArray("channels");
   for (size_t i = 0; i < m_count; i++) {
     const Channel &ch = m_channels[i];
-    int32_t raw = m_io->readRaw(ch.ioId);
+    float raw = m_io->readRaw(ch.ioId);
     float val = m_io->convert(ch.ioId, raw);
     // Round to the configured number of decimals
     float scale = 1.0;

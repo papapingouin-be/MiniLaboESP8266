@@ -28,17 +28,28 @@ public:
   // here.
   void loop() {}
 
-  // Read the raw integer value for the given channel identifier. If
-  // the channel is unknown or unsupported this returns 0.
-  int32_t readRaw(const String &id);
+  // Read the raw value for the given channel identifier. For local
+  // analog inputs this corresponds to the ADC reading. For remote
+  // channels received via UDP the cached network value is returned.
+  // If the channel is unknown or unsupported this returns 0.
+  float readRaw(const String &id);
 
   // Convert a raw value to a physical value based on calibration
   // coefficients defined in io.json (k and b). If the channel is
   // unknown returns 0.0.
-  float convert(const String &id, int32_t raw);
+  float convert(const String &id, float raw);
 
   // Convenience function to read and convert in one call.
   float readValue(const String &id);
+
+  // Update the cached value of a remote UDP input. The value is matched
+  // against the configured remote descriptors (MAC/IP/hostname and
+  // channel identifier). Returns the number of channels updated.
+  size_t updateRemoteValue(const String &mac, const String &ip,
+                           const String &channelId,
+                           const String &channelLabel, float raw,
+                           float value, const String &unit,
+                           const String &hostname);
 
   // Provide a description of the available IO hardware so the web UI
   // can expose the right options. The document is cleared and filled
@@ -57,6 +68,21 @@ public:
 private:
   bool ensureAdsReady();
 
+  struct RemoteInfo {
+    RemoteInfo()
+        : rxPort(0), txPort(0), channelIndex(0) {}
+    String mac;
+    String ip;
+    String hostname;
+    uint16_t rxPort;
+    uint16_t txPort;
+    String channelId;
+    String channelLabel;
+    String channelType;
+    int channelIndex;
+    String channelUnit;
+  };
+
   struct Channel {
     String id;
     String type; // "a0", "ads1115", etc.
@@ -64,6 +90,17 @@ private:
     float k;
     float b;
     String unit;
+    bool isUdpIn;
+    bool hasRemote;
+    RemoteInfo remote;
+    String resolvedMac;
+    String resolvedIp;
+    String resolvedHostname;
+    float lastRemoteRaw;
+    float lastRemoteValue;
+    bool remoteHasRaw;
+    bool remoteHasValue;
+    unsigned long remoteLastUpdate;
   };
 
   // Maximum number of IO channels supported. Increase if you need more

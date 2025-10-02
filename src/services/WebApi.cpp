@@ -614,7 +614,7 @@ void WebApi::handleScope() {
   for (size_t i = 0; i < sampleCount; ++i) {
     for (size_t c = 0; c < channelCount; ++c) {
       const ChannelDef &ch = channels[c];
-      int32_t raw = m_io->readRaw(ch.io);
+      float raw = m_io->readRaw(ch.io);
       float value = m_io->convert(ch.io, raw);
       sampleArrays[c].add(value);
     }
