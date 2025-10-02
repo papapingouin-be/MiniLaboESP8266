@@ -650,12 +650,18 @@ void WebApi::handleFuncGenPost() {
                   "{\"error\":\"missing body\"}");
     return;
   }
+  if (m_logger) {
+    m_logger->info(String(F("HTTP POST /api/funcgen body=")) + body);
+  }
   StaticJsonDocument<512> doc;
   DeserializationError err = deserializeJson(doc, body);
   if (err) {
     m_server.send(400, "application/json",
                   String("{\"error\":\"invalid JSON: ") +
                       err.c_str() + "\"}");
+    if (m_logger) {
+      m_logger->error(String(F("FuncGen POST JSON error: ")) + err.c_str());
+    }
     return;
   }
   m_funcGen->updateSettings(doc);
