@@ -35,6 +35,8 @@ void FuncGen::loadFromConfig() {
     m_settings.type = SQUARE;
   } else if (strcasecmp(typeStr, "triangle") == 0) {
     m_settings.type = TRIANGLE;
+  } else if (strcasecmp(typeStr, "dc") == 0) {
+    m_settings.type = DC;
   }
   m_settings.freq = doc["freq"] | 0.0f;
   float amp_pct = doc["amp_pct"] | 0.0f;
@@ -62,6 +64,8 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
       m_settings.type = SQUARE;
     } else if (strcasecmp(typeStr, "triangle") == 0) {
       m_settings.type = TRIANGLE;
+    } else if (strcasecmp(typeStr, "dc") == 0) {
+      m_settings.type = DC;
     }
   }
   if (doc.containsKey("freq")) {
@@ -93,6 +97,9 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
     case TRIANGLE:
       summary += F("triangle");
       break;
+    case DC:
+      summary += F("dc");
+      break;
     }
     summary += F(", freq=");
     summary += String(m_settings.freq, 3);
@@ -115,9 +122,22 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
   m_zeroFreqLogged = false;
   // Persist settings to funcgen.json
   JsonDocument &cfg = m_config->getConfig("funcgen");
-  cfg["type"] = (m_settings.type == SINE
-                      ? "sine"
-                      : (m_settings.type == SQUARE ? "square" : "triangle"));
+  const char *typeName = "sine";
+  switch (m_settings.type) {
+  case SINE:
+    typeName = "sine";
+    break;
+  case SQUARE:
+    typeName = "square";
+    break;
+  case TRIANGLE:
+    typeName = "triangle";
+    break;
+  case DC:
+    typeName = "dc";
+    break;
+  }
+  cfg["type"] = typeName;
   cfg["freq"] = m_settings.freq;
   cfg["amp_pct"] = (int)(m_settings.amp * 100);
   cfg["offset_pct"] = (int)(m_settings.offset * 100);
@@ -138,6 +158,17 @@ void FuncGen::loop() {
   unsigned long now = micros();
   unsigned long delta = now - m_lastMicros;
   m_lastMicros = now;
+
+  if (m_settings.type == DC) {
+    m_zeroFreqLogged = false;
+    float value = m_settings.amp;
+    if (value < 0.0f) value = 0.0f;
+    if (value > 1.0f) value = 1.0f;
+    uint16_t dacVal = (uint16_t)(value * 4095.0f + 0.5f);
+    m_dac.setVoltage(dacVal, false);
+    return;
+  }
+
   // If frequency is zero nothing to generate
   if (m_settings.freq <= 0.0f) {
     if (m_logger && !m_zeroFreqLogged) {
@@ -176,6 +207,8 @@ float FuncGen::waveformSample(float phase) {
     } else {
       return 3.0f - 4.0f * phase; // falls from 1 to -1
     }
+  case DC:
+    return 0.0f;
   default:
     return 0.0f;
   }

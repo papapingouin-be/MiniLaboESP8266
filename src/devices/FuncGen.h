@@ -1,5 +1,5 @@
 // Function generator device. Drives a DAC (MCP4725) to produce
-// periodic waveforms such as sine, square and triangle. The
+// periodic waveforms such as sine, square, triangle or DC. The
 // configuration is read from funcgen.json and can be updated at
 // runtime via the web API. Frequency, amplitude and offset are
 // specified as percentages of full scale.
@@ -16,7 +16,7 @@ class ConfigStore;
 
 class FuncGen {
 public:
-  enum Waveform { SINE, SQUARE, TRIANGLE };
+  enum Waveform { SINE, SQUARE, TRIANGLE, DC };
 
   FuncGen(Logger *logger, ConfigStore *config);
 
@@ -28,7 +28,8 @@ public:
   void loop();
 
   // Update settings from JSON document (e.g. via web API). The
-  // document should contain keys: type ("sine", "square", "triangle"),
+  // document should contain keys: type ("sine", "square", "triangle",
+  // "dc"),
   // freq (Hz), amp_pct (0–100), offset_pct (0–100), enabled (bool).
   void updateSettings(const JsonDocument &doc);
 
