@@ -33,6 +33,9 @@ public:
   // freq (Hz), amp_pct (0–100), offset_pct (0–100), enabled (bool).
   void updateSettings(const JsonDocument &doc);
 
+  // Expose the current state into a JSON object for diagnostics.
+  void snapshotStatus(JsonObject obj) const;
+
 private:
   struct Settings {
     Waveform type;
@@ -64,6 +67,7 @@ private:
   bool m_lastEnabledState;
   float m_lastDcLevelLogged;
   float m_lastOutputValue;
+  float m_lastLoggedOutput;
   bool m_noTargetLogged;
 
   // Load settings from funcgen.json. Called during begin().

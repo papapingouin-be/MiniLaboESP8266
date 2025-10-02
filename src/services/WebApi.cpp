@@ -616,29 +616,17 @@ void WebApi::handleScope() {
 }
 
 void WebApi::handleFuncGenGet() {
-  StaticJsonDocument<256> resp;
-  JsonDocument &cfg = m_config->getConfig("funcgen");
-  JsonObjectConst obj = cfg.is<JsonObject>() ? cfg.as<JsonObjectConst>()
-                                             : JsonObjectConst();
-
-  resp["type"] = obj["type"] | "sine";
-  resp["freq"] = obj["freq"] | 0.0f;
-  resp["amp_pct"] = obj["amp_pct"] | 0;
-  resp["offset_pct"] = obj["offset_pct"] | 50;
-  resp["enabled"] = obj["enabled"] | false;
-
-  if (obj.containsKey("duty_pct")) {
-    resp["duty_pct"] = obj["duty_pct"];
+  StaticJsonDocument<512> resp;
+  JsonObject root = resp.to<JsonObject>();
+  if (m_funcGen) {
+    m_funcGen->snapshotStatus(root);
   }
-  if (obj.containsKey("phase_deg")) {
-    resp["phase_deg"] = obj["phase_deg"];
-  }
-  if (obj.containsKey("target")) {
-    resp["target"] = obj["target"];
-  }
-
+  root["ok"] = true;
   String body;
   serializeJson(resp, body);
+  if (m_logger) {
+    m_logger->debug(String(F("HTTP GET /api/funcgen => ")) + body);
+  }
   m_server.send(200, "application/json", body);
 }
 
@@ -665,7 +653,29 @@ void WebApi::handleFuncGenPost() {
     return;
   }
   m_funcGen->updateSettings(doc);
-  m_server.send(200, "application/json", "{\"ok\":true}");
+  StaticJsonDocument<512> resp;
+  resp["ok"] = true;
+  resp["success"] = true;
+  JsonObject status = resp.createNestedObject("status");
+  if (m_funcGen) {
+    m_funcGen->snapshotStatus(status);
+  }
+  if (status.containsKey("enabled")) {
+    resp["enabled"] = status["enabled"];
+  }
+  if (status.containsKey("target")) {
+    resp["target"] = status["target"];
+  }
+  if (status.containsKey("summary")) {
+    resp["summary"] = status["summary"];
+    resp["message"] = status["summary"];
+  }
+  String responseBody;
+  serializeJson(resp, responseBody);
+  if (m_logger) {
+    m_logger->info(String(F("FuncGen POST ack=")) + responseBody);
+  }
+  m_server.send(200, "application/json", responseBody);
 }
 
 void WebApi::handleLogsTail() {

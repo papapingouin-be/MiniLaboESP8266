@@ -5,13 +5,32 @@
 #include "core/Logger.h"
 #include "core/ConfigStore.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
+
+namespace {
+const char *waveformName(FuncGen::Waveform wave) {
+  switch (wave) {
+  case FuncGen::SINE:
+    return "sine";
+  case FuncGen::SQUARE:
+    return "square";
+  case FuncGen::TRIANGLE:
+    return "triangle";
+  case FuncGen::DC:
+    return "dc";
+  default:
+    return "unknown";
+  }
+}
+} // namespace
 
 FuncGen::FuncGen(Logger *logger, ConfigStore *config)
     : m_logger(logger), m_config(config), m_phase(0.0f), m_lastMicros(0),
       m_disabledLogged(false), m_zeroFreqLogged(false),
       m_lastEnabledState(false), m_lastDcLevelLogged(-1.0f),
-      m_lastOutputValue(-1.0f), m_noTargetLogged(false) {
+      m_lastOutputValue(-1.0f), m_lastLoggedOutput(-1.0f),
+      m_noTargetLogged(false) {
   m_settings.type = SINE;
   m_settings.freq = 0.0f;
   m_settings.amp = 0.0f;
@@ -42,6 +61,7 @@ void FuncGen::begin() {
   m_lastEnabledState = m_settings.enabled;
   m_lastDcLevelLogged = -1.0f;
   m_lastOutputValue = -1.0f;
+  m_lastLoggedOutput = -1.0f;
 }
 
 void FuncGen::loadFromConfig() {
@@ -188,6 +208,79 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
   m_config->updateConfig("funcgen", cfg);
 }
 
+void FuncGen::snapshotStatus(JsonObject obj) const {
+  if (!obj) {
+    return;
+  }
+
+  const char *typeName = waveformName(m_settings.type);
+  obj["type"] = typeName;
+  obj["waveform"] = typeName;
+  obj["freq"] = m_settings.freq;
+  obj["amp_pct"] = (int)roundf(m_settings.amp * 100.0f);
+  obj["offset_pct"] = (int)roundf(m_settings.offset * 100.0f);
+  obj["amp_fraction"] = m_settings.amp;
+  obj["offset_fraction"] = m_settings.offset;
+  obj["enabled"] = m_settings.enabled;
+  obj["timestamp_ms"] = (uint32_t)millis();
+  if (m_settings.targetId.length()) {
+    obj["target"] = m_settings.targetId;
+  }
+
+  JsonObject hw = obj["hardware"].isNull() ? obj.createNestedObject("hardware")
+                                            : obj["hardware"].as<JsonObject>();
+  const char *driverStr = "none";
+  switch (m_target.driver) {
+  case DRIVER_MCP4725:
+    driverStr = "mcp4725";
+    break;
+  case DRIVER_PWM:
+    driverStr = "pwm";
+    break;
+  case DRIVER_NONE:
+  default:
+    driverStr = "none";
+    break;
+  }
+  hw["driver"] = driverStr;
+  hw["available"] = m_target.available;
+  if (m_target.id.length()) {
+    hw["id"] = m_target.id;
+  }
+  if (m_target.driver == DRIVER_PWM) {
+    hw["gpio"] = m_target.gpio;
+    hw["pwm_freq"] = m_target.pwmFreq;
+  } else if (m_target.driver == DRIVER_MCP4725) {
+    char buf[8];
+    snprintf(buf, sizeof(buf), "0x%02X", m_target.mcpAddress);
+    hw["address"] = buf;
+  }
+  if (m_lastOutputValue >= 0.0f) {
+    hw["last_output_fraction"] = m_lastOutputValue;
+    hw["last_output_pct"] = m_lastOutputValue * 100.0f;
+  }
+
+  bool freqValid = m_settings.freq > 0.0f || m_settings.type == DC;
+  obj["freq_valid"] = freqValid;
+
+  String summary;
+  summary.reserve(80);
+  summary += m_settings.enabled ? F("Sortie active") : F("Sortie inactive");
+  if (m_settings.targetId.length()) {
+    summary += F(" (");
+    summary += m_settings.targetId;
+    summary += F(")");
+  }
+  if (m_target.available) {
+    summary += F(" via ");
+    summary += driverStr;
+  } else {
+    summary += F(" — cible indisponible");
+  }
+  obj["summary"] = summary;
+  obj["message"] = summary;
+}
+
 void FuncGen::loop() {
   if (m_lastEnabledState != m_settings.enabled) {
     if (m_logger) {
@@ -282,6 +375,7 @@ void FuncGen::resolveTargetBinding() {
   m_target.mcpAddress = 0x60;
   m_noTargetLogged = false;
   m_lastOutputValue = -1.0f;
+  m_lastLoggedOutput = -1.0f;
 
   if (!m_config) {
     return;
@@ -465,12 +559,21 @@ void FuncGen::writeOutput(float value) {
     }
     return;
   }
+  m_noTargetLogged = false;
 
   if (value < 0.0f) value = 0.0f;
   if (value > 1.0f) value = 1.0f;
 
   if (m_lastOutputValue >= 0.0f && fabsf(m_lastOutputValue - value) < 0.0005f) {
     return;
+  }
+
+  bool shouldLog = false;
+  if (m_logger) {
+    if (m_lastLoggedOutput < 0.0f ||
+        fabsf(m_lastLoggedOutput - value) >= 0.05f) {
+      shouldLog = true;
+    }
   }
 
   switch (m_target.driver) {
@@ -490,6 +593,36 @@ void FuncGen::writeOutput(float value) {
   }
 
   m_lastOutputValue = value;
+  if (shouldLog && m_logger) {
+    String msg = String(F("FuncGen sortie -> "));
+    msg += String(value * 100.0f, 1);
+    msg += F("% (driver=");
+    switch (m_target.driver) {
+    case DRIVER_MCP4725: {
+      msg += F("mcp4725 @0x");
+      String addr = String(m_target.mcpAddress, HEX);
+      addr.toUpperCase();
+      if (addr.length() < 2) {
+        addr = "0" + addr;
+      }
+      msg += addr;
+      break;
+    }
+    case DRIVER_PWM:
+      msg += F("pwm,gpio=");
+      msg += String(m_target.gpio);
+      msg += F(",freq=");
+      msg += String(m_target.pwmFreq);
+      break;
+    case DRIVER_NONE:
+    default:
+      msg += F("none");
+      break;
+    }
+    msg += F(")");
+    m_logger->debug(msg);
+    m_lastLoggedOutput = value;
+  }
 }
 
 void FuncGen::ensureOutputDisabled() {
@@ -511,4 +644,8 @@ void FuncGen::ensureOutputDisabled() {
     break;
   }
   m_lastOutputValue = 0.0f;
+  if (m_logger) {
+    m_logger->info(F("FuncGen sortie désactivée (niveau 0)"));
+  }
+  m_lastLoggedOutput = 0.0f;
 }

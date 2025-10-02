@@ -446,6 +446,32 @@
     .func-status-indicator[data-state="pending"] .dot{background:var(--warn); box-shadow:0 0 10px rgba(255,184,107,.6);}
     .func-status-indicator[data-state="error"]{color:var(--danger); opacity:1;}
     .func-status-indicator[data-state="error"] .dot{background:var(--danger); box-shadow:0 0 10px rgba(255,107,107,.6);}
+    .func-log{
+      margin-top:12px;
+      background:rgba(10,16,24,.7);
+      border:1px solid #1c2534;
+      border-radius:10px;
+      padding:10px 12px;
+      font-size:12px;
+      max-height:160px;
+      overflow:auto;
+      display:flex;
+      flex-direction:column-reverse;
+      gap:6px;
+    }
+    .func-log:empty{display:none;}
+    .func-log-entry{
+      line-height:1.4;
+      color:#cbd5f5;
+      display:flex;
+      align-items:flex-start;
+      gap:6px;
+    }
+    .func-log-entry .func-log-time{color:#7b8bab; font-family:monospace; font-size:11px; opacity:.8;}
+    .func-log-entry.info{color:#cbd5f5;}
+    .func-log-entry.success{color:#8af5c9;}
+    .func-log-entry.warn{color:#ffca8a;}
+    .func-log-entry.error{color:#ff8a8a;}
 
     /* DMM styles */
     .dmm-display{
@@ -802,6 +828,7 @@
                       <span class="label">Sortie inactive</span>
                     </div>
                     <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
+                    <div class="func-log" id="func-log" aria-live="polite" aria-label="Journal des actions du générateur"></div>
                   </div>
                 </td>
               </tr>
@@ -1385,6 +1412,32 @@
     const funcTargetPill = $('#func-target-pill');
     const funcApplyBtn = $('#func-apply');
     const funcStatusIndicator = $('#func-output-status');
+    const funcLogPanel = $('#func-log');
+
+    const FUNC_LOG_LIMIT = 12;
+    function getFuncLogTime(){
+      try{
+        return new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      }catch(err){
+        return new Date().toISOString().split('T')[1].replace('Z','');
+      }
+    }
+    function pushFuncLog(message, level='info'){
+      if(!funcLogPanel || !message) return;
+      const entry = document.createElement('div');
+      entry.className = `func-log-entry ${level}`;
+      const time = document.createElement('span');
+      time.className = 'func-log-time';
+      time.textContent = getFuncLogTime();
+      const text = document.createElement('span');
+      text.textContent = message;
+      entry.append(time, text);
+      funcLogPanel.append(entry);
+      while(funcLogPanel.children.length > FUNC_LOG_LIMIT){
+        funcLogPanel.removeChild(funcLogPanel.firstElementChild);
+      }
+    }
+
 
     const FUNC_WAVE_CATALOG = {
       sine: {
@@ -1619,6 +1672,9 @@
     let funcApplying = false;
     let funcStatusPollTimer = null;
     let funcStatusPollStarted = false;
+    let funcLastStatusSnapshot = null;
+    let funcLastSelectedTarget = '';
+    let funcStatusErrorLogged = false;
 
     function renderFuncButton(enabled){
       if(!funcApplyBtn) return;
@@ -1666,18 +1722,23 @@
           return payload;
         }
         console.warn('[FuncGen] /api/funcgen a renvoyé', resp.status);
+        pushFuncLog(`Lecture statut /api/funcgen → HTTP ${resp.status}`,'warn');
       }catch(err){
         console.warn(err);
+        pushFuncLog('Lecture statut /api/funcgen a échoué','warn');
       }
       try{
         const fallback = await fetch('funcgen.json',{cache:'no-cache'});
         if(fallback.ok){
           console.warn('[FuncGen] Utilisation du fallback funcgen.json');
+          pushFuncLog('Lecture du statut via funcgen.json (fallback)','warn');
           return await fallback.json();
         }
         console.warn('[FuncGen] Échec du fallback funcgen.json', fallback.status);
+        pushFuncLog('Impossible de lire funcgen.json','error');
       }catch(err){
         console.warn(err);
+        pushFuncLog('Erreur lors de la lecture du fallback funcgen.json','error');
       }
       return null;
     }
@@ -1686,12 +1747,41 @@
       const status = await fetchFuncStatus(funcState.target);
       if(status && typeof status === 'object' && typeof status.enabled === 'boolean'){
         console.log('[FuncGen] Statut actualisé', status);
-        const message = status.enabled ? 'Sortie active (confirmée)' : 'Sortie inactive (confirmée)';
-        setFuncEnabled(status.enabled, message);
+        const summary = typeof status.summary === 'string' && status.summary.length
+          ? status.summary
+          : (status.enabled ? 'Sortie active (confirmée)' : 'Sortie inactive (confirmée)');
+        const detailMessage = typeof status.message === 'string' && status.message.length
+          ? status.message
+          : summary;
+        setFuncEnabled(status.enabled, detailMessage);
+        const nextSnapshot = {
+          enabled: !!status.enabled,
+          target: typeof status.target === 'string' ? status.target : '',
+          type: typeof status.type === 'string' ? status.type : '',
+          freq: Number.isFinite(status.freq) ? status.freq : null,
+          summary
+        };
+        const changed =
+          !funcLastStatusSnapshot ||
+          funcLastStatusSnapshot.enabled !== nextSnapshot.enabled ||
+          funcLastStatusSnapshot.target !== nextSnapshot.target ||
+          funcLastStatusSnapshot.type !== nextSnapshot.type ||
+          funcLastStatusSnapshot.summary !== nextSnapshot.summary ||
+          funcLastStatusSnapshot.freq !== nextSnapshot.freq;
+        if(changed){
+          const level = nextSnapshot.enabled ? 'success' : 'info';
+          pushFuncLog(`Statut backend: ${summary}`, level);
+        }
+        funcLastStatusSnapshot = nextSnapshot;
+        funcStatusErrorLogged = false;
         return true;
       }
       console.warn('[FuncGen] Statut invalide ou indisponible', status);
       updateFuncStatusDisplay('error','Impossible de vérifier la sortie');
+      if(!funcStatusErrorLogged){
+        pushFuncLog('Statut backend indisponible','warn');
+        funcStatusErrorLogged = true;
+      }
       return false;
     }
     function scheduleFuncStatusPolling(){
@@ -2128,6 +2218,14 @@
       renderFuncWaveButtons(funcCurrentProfile);
       renderFuncParamButtons(funcCurrentProfile);
       updateFuncDisplay();
+      const newTarget = funcState.target || '';
+      if(newTarget !== funcLastSelectedTarget){
+        const profileLabel = funcCurrentProfile?.description || funcCurrentProfile?.label || (output?.type || 'type inconnu');
+        const label = output ? `${output.name || output.id} (${output.id})` : 'aucune sortie';
+        const level = output ? 'info' : 'warn';
+        pushFuncLog(`Sélection : ${label}${output ? ` → ${profileLabel}` : ''}`, level);
+        funcLastSelectedTarget = newTarget;
+      }
     }
     function adjustFuncParam(direction){
       const param = funcState.currentParam;
@@ -2223,6 +2321,12 @@
       funcOutputs = await fetchFuncOutputs();
       funcTargetSelect.innerHTML = '';
       if(funcOutputs.length){
+        const list = funcOutputs.map(output=>output.id).join(', ');
+        pushFuncLog(`Sorties disponibles : ${list}`,'info');
+      }else{
+        pushFuncLog('Aucune sortie disponible (configuration outputs.json?)','warn');
+      }
+      if(funcOutputs.length){
         funcOutputs.forEach(output=>{
           const opt = document.createElement('option');
           opt.value = output.id;
@@ -2317,6 +2421,16 @@
       }
       if(target) payload.target = target;
       console.log('[FuncGen] Demande de mise à jour', payload);
+      let payloadPreview = '';
+      try{
+        payloadPreview = JSON.stringify(payload);
+      }catch(err){
+        payloadPreview = '[payload]';
+      }
+      if(payloadPreview.length > 160){
+        payloadPreview = payloadPreview.slice(0, 157) + '…';
+      }
+      pushFuncLog(`Commande → ${payloadPreview}`, desiredEnabled ? 'info' : 'warn');
       renderFuncButton(desiredEnabled);
       updateFuncStatusDisplay('pending', desiredEnabled ? 'Activation demandée…' : 'Arrêt demandé…');
       if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
@@ -2331,6 +2445,7 @@
           }catch(err){
             parseFailed = true;
             console.warn('FuncGen response parse error', err);
+            pushFuncLog('Réponse /api/funcgen illisible','warn');
           }
         }
         const ack = isPlainObject(raw) ? raw : null;
@@ -2343,21 +2458,53 @@
         if(backendAccepted){
           const reportedEnabled = ackEnabled !== null ? ackEnabled : desiredEnabled;
           const ackMessage = typeof ack?.message === 'string' && ack.message ? ack.message : null;
+          const statusSummary = typeof ack?.status?.summary === 'string' && ack.status.summary.length ? ack.status.summary : null;
           const confirmationKnown = ackOk === true || ackSuccess === true || ackStatus === 'ok' || ackEnabled !== null;
           const defaultMessage = confirmationKnown
             ? (reportedEnabled ? 'Sortie active (confirmée)' : 'Sortie inactive (confirmée)')
             : (reportedEnabled ? 'Sortie active (à confirmer)' : 'Sortie inactive (à confirmer)');
           setFuncEnabled(reportedEnabled, ackMessage || defaultMessage);
+          const summaryLog = ackMessage || statusSummary || defaultMessage;
+          if(summaryLog){
+            const ackLevel = reportedEnabled ? 'success' : 'info';
+            pushFuncLog(`Backend → ${summaryLog}`, ackLevel);
+          }
+          const hwInfo = ack?.status?.hardware;
+          if(hwInfo && typeof hwInfo === 'object'){
+            let hardwareDetails = '';
+            if(typeof hwInfo.driver === 'string' && hwInfo.driver.length){
+              hardwareDetails += hwInfo.driver;
+            }
+            if(typeof hwInfo.gpio === 'number'){
+              hardwareDetails += hardwareDetails.length ? ` @GPIO${hwInfo.gpio}` : `GPIO${hwInfo.gpio}`;
+            }
+            if(typeof hwInfo.address === 'string' && hwInfo.address.length){
+              hardwareDetails += hardwareDetails.length ? ` @${hwInfo.address}` : hwInfo.address;
+            }
+            if(typeof hwInfo.available === 'boolean'){
+              hardwareDetails += hardwareDetails.length ? ' • ' : '';
+              hardwareDetails += hwInfo.available ? 'cible prête' : 'cible indisponible';
+            }
+            if(typeof hwInfo.last_output_pct === 'number'){
+              hardwareDetails += hardwareDetails.length ? ' • ' : '';
+              hardwareDetails += `sortie ${formatNumber(hwInfo.last_output_pct, 1)} %`;
+            }
+            if(hardwareDetails.length){
+              pushFuncLog(`Matériel → ${hardwareDetails}`, hwInfo.available === false ? 'warn' : 'info');
+            }
+          }
           setTimeout(()=>{ refreshFuncStatus(); }, confirmationKnown ? 500 : 800);
         }else{
           renderFuncButton(funcState.enabled);
           updateFuncStatusDisplay('error','Échec de la mise à jour de la sortie');
+          pushFuncLog('Le backend a rejeté la commande','error');
           setTimeout(()=>{ refreshFuncStatus(); }, 1500);
         }
       }catch(e){
         console.warn(e);
         renderFuncButton(funcState.enabled);
         updateFuncStatusDisplay('error','Erreur de communication avec la sortie');
+        pushFuncLog('Erreur lors de l\'envoi à /api/funcgen','error');
       }finally{
         funcApplying = false;
       }
