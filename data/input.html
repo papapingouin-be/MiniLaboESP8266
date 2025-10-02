@@ -638,13 +638,25 @@
   let logEntries = [];
   let snapshotLogCount = 0;
   let snapshotErrorNotified = false;
-  const UDP_TYPES = new Set(['udp', 'udp-in']);
+  const UDP_TYPES = new Set(['udp', 'udp-in', 'udp-out']);
+  const UDP_PANEL_TYPES = new Set(['udp', 'udp-in']);
   let udpScanResults = [];
   let udpScanInProgress = false;
 
   function isUdpType(value) {
     if (!value) return false;
     return UDP_TYPES.has(String(value).trim().toLowerCase());
+  }
+
+  function isUdpPanelType(value) {
+    if (!value) return false;
+    return UDP_PANEL_TYPES.has(String(value).trim().toLowerCase());
+  }
+
+  function isUdpHardwareProfileSelected() {
+    const select = document.getElementById('hardwareProfile');
+    if (!select) return false;
+    return select.value === 'udp';
   }
 
   function getRowRemote(tr) {
@@ -833,6 +845,16 @@
     const summaryEl = document.getElementById('udpSelectionSummary');
     const statusEl = document.getElementById('udpScanStatus');
     if (!panel) return;
+    if (!isUdpHardwareProfileSelected()) {
+      panel.hidden = true;
+      if (summaryEl) {
+        summaryEl.textContent = 'Sélectionnez le profil matériel « Entrée UDP personnalisée » pour configurer une source distante.';
+      }
+      if (statusEl && !udpScanInProgress) {
+        statusEl.textContent = '';
+      }
+      return;
+    }
     if (!tr) {
       panel.hidden = true;
       if (summaryEl) {
@@ -845,7 +867,7 @@
     }
     const typeInput = tr.querySelector('td[data-field="type"] input');
     const typeValue = typeInput ? typeInput.value.trim().toLowerCase() : '';
-    if (!isUdpType(typeValue)) {
+    if (!isUdpPanelType(typeValue)) {
       panel.hidden = true;
       if (summaryEl) {
         summaryEl.textContent = 'Sélectionnez une ligne de type « udp-in » pour configurer la source distante.';
@@ -929,7 +951,9 @@
       if (!option) return;
       document.getElementById('rawMin').value = option.dataset.rawMin;
       document.getElementById('rawMax').value = option.dataset.rawMax;
+      updateUdpPanelContext(selectedRow);
     });
+    updateUdpPanelContext(selectedRow);
   }
 
   function normalizeLocalInput(entry) {
@@ -1779,6 +1803,7 @@
     document.getElementById('physMax').value = 1;
     document.getElementById('assistantResult').textContent = 'Complétez les champs ci-dessus pour obtenir la formule.';
     lastComputation = null;
+    updateUdpPanelContext(selectedRow);
   }
 
   const udpScanButton = document.getElementById('udpScanButton');
