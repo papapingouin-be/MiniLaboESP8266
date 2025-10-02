@@ -140,6 +140,93 @@
       justify-self: flex-start;
     }
 
+    .assistant-section .udp-panel {
+      border-top: 1px solid #d7deea;
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .udp-scan-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .udp-scan-status {
+      font-size: 0.85rem;
+      color: #53618c;
+    }
+
+    .udp-devices {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .udp-device {
+      border: 1px solid #ccd8ef;
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      background: #fff;
+      display: grid;
+      gap: 0.5rem;
+      box-shadow: 0 2px 4px rgba(31, 61, 122, 0.05);
+    }
+
+    .udp-device h4 {
+      margin: 0;
+      font-size: 1rem;
+      color: #1c317a;
+    }
+
+    .udp-device .udp-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      font-size: 0.85rem;
+      color: #51607f;
+    }
+
+    .udp-device-inputs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .udp-device-inputs button {
+      border: 1px solid #b0c2ef;
+      background: #f3f6ff;
+      color: #1c317a;
+      border-radius: 999px;
+      padding: 0.35rem 0.8rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, border 0.15s ease;
+    }
+
+    .udp-device-inputs button:hover:not(.selected) {
+      background: #e3eaff;
+    }
+
+    .udp-device-inputs button.selected {
+      background: #1f3d7a;
+      border-color: #1f3d7a;
+      color: #fff;
+    }
+
+    .udp-device-inputs button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .udp-device-empty {
+      font-size: 0.85rem;
+      color: #6a7998;
+      font-style: italic;
+    }
+
     .assistant-result {
       background: #fff;
       border: 1px dashed #a3b3d4;
@@ -448,6 +535,16 @@
           <li>Pour une entrée UDP représentant un pourcentage : mesure min = 0, max = 100, grandeur max = 1 (pour normaliser).</li>
         </ul>
       </details>
+      <section id="udpInputPanel" class="udp-panel" hidden>
+        <h3>Entrée UDP distante</h3>
+        <p class="legend">Associez une valeur émise par un autre module MiniLabo ou une application PC.</p>
+        <div class="udp-scan-actions">
+          <button type="button" id="udpScanButton">Scanner le réseau</button>
+          <span id="udpScanStatus" class="udp-scan-status"></span>
+        </div>
+        <p id="udpSelectionSummary" class="legend">Sélectionnez une ligne de type « udp-in » pour configurer la source distante.</p>
+        <div id="udpDevicesList" class="udp-devices"></div>
+      </section>
     </aside>
   </div>
 
@@ -541,6 +638,274 @@
   let logEntries = [];
   let snapshotLogCount = 0;
   let snapshotErrorNotified = false;
+  const UDP_TYPES = new Set(['udp', 'udp-in']);
+  let udpScanResults = [];
+  let udpScanInProgress = false;
+
+  function isUdpType(value) {
+    if (!value) return false;
+    return UDP_TYPES.has(String(value).trim().toLowerCase());
+  }
+
+  function getRowRemote(tr) {
+    if (!tr || !tr.dataset) return null;
+    if (!Object.prototype.hasOwnProperty.call(tr.dataset, 'remote')) return null;
+    const raw = tr.dataset.remote;
+    if (!raw || !raw.length) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function setRowRemote(tr, remote) {
+    if (!tr || !tr.dataset) return;
+    if (remote && typeof remote === 'object') {
+      try {
+        tr.dataset.remote = JSON.stringify(remote);
+      } catch (err) {
+        tr.dataset.remote = '';
+      }
+    } else if (Object.prototype.hasOwnProperty.call(tr.dataset, 'remote')) {
+      delete tr.dataset.remote;
+    }
+  }
+
+  function remoteMatchesSelection(remote, device, input) {
+    if (!remote || typeof remote !== 'object') return false;
+    if (!device || typeof device !== 'object') return false;
+    if (!input || typeof input !== 'object') return false;
+    const remoteId = remote.channelId || remote.channelLabel || '';
+    const inputId = input.id || input.label || '';
+    if (!remoteId || !inputId) return false;
+    const remoteMac = remote.mac ? String(remote.mac).toLowerCase() : '';
+    const deviceMac = device.mac ? String(device.mac).toLowerCase() : '';
+    const sameMac = remoteMac.length && deviceMac.length && remoteMac === deviceMac;
+    const sameIp = remote.ip && device.ip && remote.ip === device.ip;
+    return (sameMac || sameIp) && remoteId === inputId;
+  }
+
+  function formatRemoteSummary(remote) {
+    if (!remote || typeof remote !== 'object') {
+      return 'Aucune entrée distante sélectionnée.';
+    }
+    const parts = [];
+    if (remote.channelId) {
+      parts.push(`Canal ${remote.channelId}`);
+    } else if (remote.channelLabel) {
+      parts.push(`Canal ${remote.channelLabel}`);
+    }
+    if (remote.hostname) {
+      parts.push(remote.hostname);
+    } else if (remote.mac) {
+      parts.push(remote.mac);
+    }
+    if (remote.ip) {
+      parts.push(remote.ip);
+    }
+    if (!parts.length) {
+      return 'Aucune entrée distante sélectionnée.';
+    }
+    return parts.join(' · ');
+  }
+
+  function renderUdpDevices(devices, selectedRemote) {
+    const container = document.getElementById('udpDevicesList');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!Array.isArray(devices) || !devices.length) {
+      container.innerHTML = '<p class="legend">Aucun module détecté pour le moment.</p>';
+      return;
+    }
+    devices.forEach(device => {
+      if (!device || typeof device !== 'object') return;
+      const card = document.createElement('article');
+      card.className = 'udp-device';
+      const title = document.createElement('h4');
+      const titleCandidates = [device.hostname, device.mac, device.ip, 'Module UDP'];
+      const chosen = titleCandidates.find(entry => typeof entry === 'string' && entry.trim().length);
+      title.textContent = chosen ? chosen : 'Module UDP';
+      card.appendChild(title);
+
+      const meta = document.createElement('div');
+      meta.className = 'udp-meta';
+      const ipSpan = document.createElement('span');
+      ipSpan.textContent = `IP : ${device.ip || '—'}`;
+      meta.appendChild(ipSpan);
+      if (device.mac) {
+        const macSpan = document.createElement('span');
+        macSpan.textContent = `MAC : ${device.mac}`;
+        meta.appendChild(macSpan);
+      }
+      const rxPort = device.rx_port ?? device.rxPort;
+      if (Number.isFinite(rxPort) && rxPort > 0) {
+        const portSpan = document.createElement('span');
+        portSpan.textContent = `Port UDP : ${rxPort}`;
+        meta.appendChild(portSpan);
+      }
+      card.appendChild(meta);
+
+      const inputsWrap = document.createElement('div');
+      inputsWrap.className = 'udp-device-inputs';
+      const inputs = Array.isArray(device.inputs) ? device.inputs : [];
+      if (!inputs.length) {
+        const empty = document.createElement('p');
+        empty.className = 'udp-device-empty';
+        empty.textContent = 'Aucune entrée distante publiée.';
+        inputsWrap.appendChild(empty);
+      } else {
+        inputs.forEach(input => {
+          if (!input || typeof input !== 'object') return;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const label = input.id || input.label || input.type || 'Entrée';
+          const unitSuffix = input.unit ? ` (${input.unit})` : '';
+          btn.textContent = `${label}${unitSuffix}`;
+          if (remoteMatchesSelection(selectedRemote, device, input)) {
+            btn.classList.add('selected');
+          }
+          btn.addEventListener('click', () => {
+            if (!selectedRow) {
+              logEvent('Sélectionnez d’abord une ligne dans la table.', 'warn');
+              return;
+            }
+            applyRemoteSelection(selectedRow, device, input);
+          });
+          inputsWrap.appendChild(btn);
+        });
+      }
+      card.appendChild(inputsWrap);
+      container.appendChild(card);
+    });
+  }
+
+  async function scanUdpDevices() {
+    if (udpScanInProgress) {
+      return;
+    }
+    const statusEl = document.getElementById('udpScanStatus');
+    udpScanInProgress = true;
+    if (statusEl) {
+      statusEl.textContent = 'Scan en cours...';
+    }
+    try {
+      const res = await fetch('/api/udp/discover');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      udpScanResults = Array.isArray(data.devices) ? data.devices : [];
+      const status = typeof data.status === 'string' ? data.status : '';
+      if (statusEl) {
+        if (status === 'udp_disabled' || status === 'udp_unavailable') {
+          statusEl.textContent = 'Le service UDP est désactivé sur ce module.';
+        } else if (!udpScanResults.length) {
+          statusEl.textContent = 'Aucun module détecté.';
+        } else {
+          statusEl.textContent = `Modules détectés : ${udpScanResults.length}`;
+        }
+      }
+      if (selectedRow) {
+        updateUdpPanelContext(selectedRow);
+      } else {
+        renderUdpDevices(udpScanResults, null);
+      }
+      if (udpScanResults.length) {
+        logEvent(`Scan UDP terminé : ${udpScanResults.length} module(s) détecté(s).`, 'success');
+      } else if (status !== 'udp_disabled' && status !== 'udp_unavailable') {
+        logEvent('Scan UDP terminé : aucun module détecté.', 'info');
+      }
+    } catch (err) {
+      const reason = err && err.message ? err.message : String(err);
+      if (statusEl) {
+        statusEl.textContent = `Erreur lors du scan : ${reason}`;
+      }
+      logEvent(`Erreur lors du scan UDP : ${reason}`, 'error');
+    } finally {
+      udpScanInProgress = false;
+    }
+  }
+
+  function updateUdpPanelContext(tr) {
+    const panel = document.getElementById('udpInputPanel');
+    const summaryEl = document.getElementById('udpSelectionSummary');
+    const statusEl = document.getElementById('udpScanStatus');
+    if (!panel) return;
+    if (!tr) {
+      panel.hidden = true;
+      if (summaryEl) {
+        summaryEl.textContent = 'Sélectionnez une ligne de type « udp-in » pour configurer la source distante.';
+      }
+      if (statusEl && udpScanResults.length === 0 && !udpScanInProgress) {
+        statusEl.textContent = '';
+      }
+      return;
+    }
+    const typeInput = tr.querySelector('td[data-field="type"] input');
+    const typeValue = typeInput ? typeInput.value.trim().toLowerCase() : '';
+    if (!isUdpType(typeValue)) {
+      panel.hidden = true;
+      if (summaryEl) {
+        summaryEl.textContent = 'Sélectionnez une ligne de type « udp-in » pour configurer la source distante.';
+      }
+      return;
+    }
+    panel.hidden = false;
+    const remote = getRowRemote(tr);
+    if (summaryEl) {
+      summaryEl.textContent = formatRemoteSummary(remote);
+    }
+    if (udpScanInProgress && statusEl) {
+      statusEl.textContent = 'Scan en cours...';
+    } else if (statusEl && !udpScanResults.length) {
+      statusEl.textContent = 'Aucun module détecté pour le moment.';
+    }
+    renderUdpDevices(udpScanResults, remote);
+  }
+
+  function applyRemoteSelection(tr, device, input) {
+    if (!tr || !device || !input) return;
+    const typeInput = tr.querySelector('td[data-field="type"] input');
+    if (typeInput) {
+      typeInput.value = 'udp-in';
+      handleTypeChange(tr, typeInput, { forceUnit: false });
+    }
+    const remoteInfo = {
+      ip: device.ip || '',
+      mac: device.mac || '',
+      hostname: device.hostname || '',
+      rxPort: device.rx_port ?? device.rxPort ?? 0,
+      txPort: device.tx_port ?? device.txPort ?? 0,
+      channelId: input.id || input.label || '',
+      channelLabel: input.label || input.id || '',
+      channelType: input.type || '',
+      channelIndex: Number.isFinite(input.index) ? input.index : 0,
+      channelUnit: input.unit || ''
+    };
+    setRowRemote(tr, remoteInfo);
+    const indexEditor = tr.querySelector('td[data-field="index"] select, td[data-field="index"] input');
+    if (indexEditor) {
+      indexEditor.value = String(remoteInfo.channelIndex || 0);
+      indexEditor.dispatchEvent(new Event('input', { bubbles: true }));
+      indexEditor.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const unitInput = tr.querySelector('td[data-field="unit"] input');
+    if (unitInput && (unitInput.dataset.autofill !== 'false' || !unitInput.value.trim().length)) {
+      unitInput.value = remoteInfo.channelUnit || unitInput.value;
+      unitInput.dataset.autofill = remoteInfo.channelUnit ? 'true' : unitInput.dataset.autofill;
+    }
+    if (selectedRow === tr) {
+      updateUdpPanelContext(tr);
+    }
+    const labelParts = [];
+    if (remoteInfo.channelId) labelParts.push(remoteInfo.channelId);
+    if (remoteInfo.hostname) labelParts.push(remoteInfo.hostname);
+    else if (remoteInfo.mac) labelParts.push(remoteInfo.mac);
+    if (remoteInfo.ip) labelParts.push(remoteInfo.ip);
+    logEvent(`Entrée UDP associée à ${labelParts.join(' · ') || 'une source distante'}.`, 'info');
+  }
 
   function populateProfiles() {
     const select = document.getElementById('hardwareProfile');
@@ -758,6 +1123,7 @@
       selectedRow = tr;
       selectedRow.classList.add('selected');
       updateSelectedLabel(getRowId(tr));
+      updateUdpPanelContext(tr);
       if (lastComputation) {
         applyValuesToRow(tr, lastComputation.k, lastComputation.b);
       }
@@ -866,6 +1232,14 @@
       }
     }
     refreshValueColumn();
+    if (!isUdpType(type)) {
+      setRowRemote(tr, null);
+      if (selectedRow === tr) {
+        updateUdpPanelContext(null);
+      }
+    } else if (selectedRow === tr) {
+      updateUdpPanelContext(tr);
+    }
   }
 
   function removeRow(tr) {
@@ -874,6 +1248,7 @@
       selectedRow.classList.remove('selected');
       selectedRow = null;
       updateSelectedLabel(null);
+      updateUdpPanelContext(null);
     }
     tr.remove();
     updateTableStatus();
@@ -1087,6 +1462,19 @@
 
   function createRow(data = {}) {
     const tr = document.createElement('tr');
+    let remoteInfo = null;
+    if (data && Object.prototype.hasOwnProperty.call(data, 'remote')) {
+      if (typeof data.remote === 'string') {
+        try {
+          remoteInfo = JSON.parse(data.remote);
+        } catch (err) {
+          remoteInfo = null;
+        }
+      } else if (typeof data.remote === 'object' && data.remote !== null) {
+        remoteInfo = data.remote;
+      }
+    }
+    setRowRemote(tr, remoteInfo);
 
     const idCell = document.createElement('td');
     idCell.dataset.field = 'id';
@@ -1254,6 +1642,7 @@
         selectedRow = null;
       }
       updateSelectedLabel(null);
+      updateUdpPanelContext(null);
       updateTableStatus();
       const count = Array.isArray(channels) ? channels.length : 0;
       if (count === 0) {
@@ -1306,14 +1695,19 @@
       const kVal = kInput ? parseFloat(kInput.value) : NaN;
       const bVal = bInput ? parseFloat(bInput.value) : NaN;
       const unit = unitInput ? unitInput.value.trim() : '';
-      payload.push({
+      const rowData = {
         id,
         type,
         index: Number.isFinite(indexValue) ? indexValue : 0,
         k: Number.isFinite(kVal) ? kVal : 0,
         b: Number.isFinite(bVal) ? bVal : 0,
         unit
-      });
+      };
+      const remoteInfo = getRowRemote(tr);
+      if (remoteInfo && isUdpType(type)) {
+        rowData.remote = remoteInfo;
+      }
+      payload.push(rowData);
     });
     logEvent(`Enregistrement de la configuration IO (${payload.length} ligne(s))...`, 'info');
     try {
@@ -1386,6 +1780,15 @@
     document.getElementById('assistantResult').textContent = 'Complétez les champs ci-dessus pour obtenir la formule.';
     lastComputation = null;
   }
+
+  const udpScanButton = document.getElementById('udpScanButton');
+  if (udpScanButton) {
+    udpScanButton.addEventListener('click', () => {
+      scanUdpDevices();
+    });
+  }
+  renderUdpDevices(udpScanResults, null);
+  updateUdpPanelContext(null);
 
   logEvent('Initialisation de la page IO...', 'info');
   setupCollapsibleNavigation();

@@ -8,6 +8,7 @@
 #define MINILABOESP_UDPSERVICE_H
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <WiFiUdp.h>
 
 class ConfigStore;
@@ -21,7 +22,20 @@ public:
   void loop();
   bool isRunning() const { return m_running; }
 
+  // Perform a discovery cycle to find other MiniLabo devices on the
+  // network. Results are written to the provided JSON document as an
+  // object containing a "devices" array. The function returns true if at
+  // least one device responded. When the service is disabled the
+  // document contains {"status":"udp_disabled","devices":[]}. The
+  // timeout controls how long the scan waits for responses.
+  bool discoverPeers(JsonDocument &doc, unsigned long timeoutMs = 600);
+
 private:
+  void handleIncomingPacket(const char *buf, int len, const IPAddress &ip,
+                            uint16_t port);
+  void appendLocalInputs(JsonArray &arr);
+  void sendDiscoveryReply(const IPAddress &ip, uint16_t port);
+
   WiFiUDP m_udp;
   uint16_t m_rxPort;
   uint16_t m_txPort;

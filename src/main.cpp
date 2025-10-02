@@ -44,8 +44,9 @@ FuncGen funcGen(&logger, &configStore);
 // writes to avoid blocking the main loop. See FileWriteService for
 // details.
 FileWriteService fileWriteService;
-WebApi webApi(&configStore, &ioRegistry, &dmm, &funcGen, &logger, &fileWriteService);
 UdpService udpService(&configStore, &ioRegistry, &logger);
+WebApi webApi(&configStore, &ioRegistry, &dmm, &funcGen, &logger,
+              &fileWriteService, &udpService);
 
 static bool g_wifiServicesEnabled = true;
 

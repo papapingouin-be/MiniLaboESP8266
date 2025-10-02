@@ -49,6 +49,11 @@ public:
   // raw reading, converted value and configured unit.
   void snapshot(JsonDocument &doc);
 
+  // Describe the configured channels in a JSON array. Each entry contains
+  // the identifier, type, index, calibration coefficients and unit. The
+  // provided array is cleared before data is appended.
+  void describeChannels(JsonArray &arr) const;
+
 private:
   bool ensureAdsReady();
 
