@@ -15,12 +15,12 @@ class Dmm;
 class FuncGen;
 class Logger;
 class FileWriteService;
+class UdpService;
 
 class WebApi {
 public:
   WebApi(ConfigStore *config, IORegistry *ioReg, Dmm *dmm, FuncGen *funcGen,
-         Logger *logger,
-         FileWriteService *fileService);
+         Logger *logger, FileWriteService *fileService, UdpService *udp);
 
   // Start the HTTP server and register handlers. Should be called
   // during setup().
@@ -37,6 +37,7 @@ private:
   FuncGen *m_funcGen;
   Logger *m_logger;
   FileWriteService *m_fileService;
+  UdpService *m_udp;
   ESP8266WebServer m_server;
 
   // Handler functions
@@ -51,6 +52,7 @@ private:
   void handleIoHardware();
   void handleIoSnapshot();
   void handleOutputsTest();
+  void handleUdpDiscover();
 
   // Handle a login request. Accepts a JSON body containing a
   // "pin" field. The provided PIN is compared against the value

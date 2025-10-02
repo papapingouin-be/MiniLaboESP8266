@@ -8,6 +8,7 @@
 #include "devices/Dmm.h"
 #include "devices/FuncGen.h"
 #include "services/FileWriteService.h"
+#include "services/UdpService.h"
 #include <FS.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -66,9 +67,10 @@ int pinLabelToGpio(const String &label) {
 
 WebApi::WebApi(ConfigStore *config, IORegistry *ioReg, Dmm *dmm,
                FuncGen *funcGen, Logger *logger,
-               FileWriteService *fileService)
+               FileWriteService *fileService, UdpService *udp)
     : m_config(config), m_io(ioReg), m_dmm(dmm), m_funcGen(funcGen),
-      m_logger(logger), m_fileService(fileService), m_server(80) {}
+      m_logger(logger), m_fileService(fileService), m_udp(udp),
+      m_server(80) {}
 
 void WebApi::begin() {
   // Register handlers for API endpoints
@@ -135,6 +137,11 @@ void WebApi::begin() {
       "/api/wifi/scan", HTTP_GET,
       [this]() {
         handleWifiScan();
+      });
+  m_server.on(
+      "/api/udp/discover", HTTP_GET,
+      [this]() {
+        handleUdpDiscover();
       });
 
   // Endpoint for login. Expects a JSON body { "pin": "1234" }
@@ -280,6 +287,20 @@ void WebApi::handleOutputsTest() {
   responseDoc["ok"] = true;
   String response;
   serializeJson(responseDoc, response);
+  m_server.send(200, "application/json", response);
+}
+
+void WebApi::handleUdpDiscover() {
+  DynamicJsonDocument doc(4096);
+  if (m_udp) {
+    m_udp->discoverPeers(doc, 800);
+  } else {
+    doc.clear();
+    doc["status"] = "udp_unavailable";
+    doc.createNestedArray("devices");
+  }
+  String response;
+  serializeJson(doc, response);
   m_server.send(200, "application/json", response);
 }
 

@@ -396,3 +396,17 @@ void IORegistry::snapshot(JsonDocument &doc) {
     obj["value"] = convert(ch.id, raw);
   }
 }
+
+void IORegistry::describeChannels(JsonArray &arr) const {
+  arr.clear();
+  for (size_t i = 0; i < m_channelCount; i++) {
+    const Channel &ch = m_channels[i];
+    JsonObject obj = arr.createNestedObject();
+    obj["id"] = ch.id;
+    obj["type"] = ch.type;
+    obj["index"] = ch.index;
+    obj["k"] = ch.k;
+    obj["b"] = ch.b;
+    obj["unit"] = ch.unit;
+  }
+}
