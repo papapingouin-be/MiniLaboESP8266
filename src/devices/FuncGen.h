@@ -46,6 +46,8 @@ private:
   Adafruit_MCP4725 m_dac;
   float m_phase;
   unsigned long m_lastMicros;
+  bool m_disabledLogged;
+  bool m_zeroFreqLogged;
 
   // Load settings from funcgen.json. Called during begin().
   void loadFromConfig();
