@@ -7,6 +7,73 @@
 #include "core/Logger.h"
 #include <ESP8266WiFi.h>
 #include <ArduinoJson.h>
+#include <math.h>
+#include <stdlib.h>
+
+namespace {
+
+String trimmedString(const String &value) {
+  String copy = value;
+  copy.trim();
+  return copy;
+}
+
+String trimmedVariant(JsonVariantConst value) {
+  if (!value.is<const char *>()) {
+    return String();
+  }
+  const char *raw = value.as<const char *>();
+  if (!raw) {
+    return String();
+  }
+  String str(raw);
+  str.trim();
+  return str;
+}
+
+bool hasText(const String &value) { return value.length() > 0; }
+
+bool isFiniteNumber(float value) { return !isnan(value) && !isinf(value); }
+
+bool extractFloat(JsonVariantConst value, float &out) {
+  if (value.is<float>()) {
+    out = value.as<float>();
+    return isFiniteNumber(out);
+  }
+  if (value.is<double>()) {
+    out = static_cast<float>(value.as<double>());
+    return isFiniteNumber(out);
+  }
+  if (value.is<long>()) {
+    out = static_cast<float>(value.as<long>());
+    return true;
+  }
+  if (value.is<unsigned long>()) {
+    out = static_cast<float>(value.as<unsigned long>());
+    return true;
+  }
+  if (value.is<int>()) {
+    out = static_cast<float>(value.as<int>());
+    return true;
+  }
+  if (value.is<unsigned int>()) {
+    out = static_cast<float>(value.as<unsigned int>());
+    return true;
+  }
+  if (value.is<const char *>()) {
+    const char *raw = value.as<const char *>();
+    if (!raw) return false;
+    char *endPtr = nullptr;
+    float parsed = strtof(raw, &endPtr);
+    if (endPtr && endPtr != raw && isFiniteNumber(parsed)) {
+      out = parsed;
+      return true;
+    }
+  }
+  return false;
+}
+
+} // namespace
 
 UdpService::UdpService(ConfigStore *config, IORegistry *ioReg, Logger *logger)
     : m_rxPort(50000), m_txPort(50001), m_config(config), m_io(ioReg),
@@ -96,9 +163,156 @@ void UdpService::handleIncomingPacket(const char *buf, int len,
     return;
   }
 
+  String sourceMac = trimmedVariant(doc["mac"]);
+  if (!hasText(sourceMac)) {
+    sourceMac = trimmedVariant(doc["source_mac"]);
+  }
+  String sourceHostname = trimmedVariant(doc["hostname"]);
+  if (!hasText(sourceHostname)) {
+    sourceHostname = trimmedVariant(doc["source"]);
+  }
+  String sourceIp = trimmedVariant(doc["ip"]);
+  if (!hasText(sourceIp)) {
+    sourceIp = ip.toString();
+  }
+
   if (strcmp(cmd, "discover") == 0 || strcmp(cmd, "list_inputs") == 0) {
     sendDiscoveryReply(ip, port);
+    return;
+  } else if (strcmp(cmd, "value") == 0 || strcmp(cmd, "channel_value") == 0) {
+    applyRemoteValue(doc.as<JsonVariantConst>(), sourceMac, sourceHostname,
+                     sourceIp);
+    return;
+  } else if (strcmp(cmd, "values") == 0 || strcmp(cmd, "snapshot") == 0) {
+    JsonArrayConst arrValues = doc["values"].as<JsonArrayConst>();
+    if (arrValues.isNull()) {
+      arrValues = doc["channels"].as<JsonArrayConst>();
+    }
+    size_t updated = 0;
+    if (!arrValues.isNull()) {
+      for (JsonVariantConst entry : arrValues) {
+        updated += applyRemoteValue(entry, sourceMac, sourceHostname, sourceIp);
+      }
+    }
+    if (updated == 0) {
+      JsonObjectConst channelObj = doc["channel"].as<JsonObjectConst>();
+      if (!channelObj.isNull()) {
+        updated += applyRemoteValue(channelObj, sourceMac, sourceHostname,
+                                    sourceIp);
+      }
+    }
+    if (updated == 0 && doc.containsKey("id")) {
+      applyRemoteValue(doc.as<JsonVariantConst>(), sourceMac, sourceHostname,
+                       sourceIp);
+    }
   }
+}
+
+size_t UdpService::applyRemoteValue(JsonVariantConst payload,
+                                    const String &mac,
+                                    const String &hostname,
+                                    const String &ipStr) {
+  if (!m_io) {
+    return 0;
+  }
+  if (!payload.is<JsonObject>()) {
+    return 0;
+  }
+  JsonObjectConst obj = payload.as<JsonObjectConst>();
+  JsonObjectConst channelObj = obj["channel"].as<JsonObjectConst>();
+
+  String channelId = trimmedVariant(obj["channelId"]);
+  if (!hasText(channelId)) {
+    channelId = trimmedVariant(obj["channel_id"]);
+  }
+  if (!hasText(channelId)) {
+    channelId = trimmedVariant(obj["id"]);
+  }
+  if (!hasText(channelId) && !channelObj.isNull()) {
+    channelId = trimmedVariant(channelObj["id"]);
+  }
+  if (!hasText(channelId) && !channelObj.isNull()) {
+    channelId = trimmedVariant(channelObj["channel_id"]);
+  }
+
+  String channelLabel = trimmedVariant(obj["channelLabel"]);
+  if (!hasText(channelLabel)) {
+    channelLabel = trimmedVariant(obj["channel_label"]);
+  }
+  if (!hasText(channelLabel)) {
+    channelLabel = trimmedVariant(obj["label"]);
+  }
+  if (!hasText(channelLabel) && !channelObj.isNull()) {
+    channelLabel = trimmedVariant(channelObj["label"]);
+  }
+  if (!hasText(channelLabel) && !channelObj.isNull()) {
+    channelLabel = trimmedVariant(channelObj["channel_label"]);
+  }
+  if (!hasText(channelLabel)) {
+    channelLabel = trimmedVariant(obj["name"]);
+  }
+
+  float raw = NAN;
+  float value = NAN;
+  if (!extractFloat(obj["raw"], raw) && !channelObj.isNull()) {
+    extractFloat(channelObj["raw"], raw);
+  }
+  if (!extractFloat(obj["value"], value) && !channelObj.isNull()) {
+    extractFloat(channelObj["value"], value);
+  }
+  if (!extractFloat(obj["converted"], value) && !channelObj.isNull()) {
+    extractFloat(channelObj["converted"], value);
+  }
+
+  String unit = trimmedVariant(obj["unit"]);
+  if (!hasText(unit) && !channelObj.isNull()) {
+    unit = trimmedVariant(channelObj["unit"]);
+  }
+  if (!hasText(unit)) {
+    unit = trimmedVariant(obj["channel_unit"]);
+  }
+  if (!hasText(unit) && !channelObj.isNull()) {
+    unit = trimmedVariant(channelObj["channel_unit"]);
+  }
+
+  String sourceMac = trimmedVariant(obj["mac"]);
+  if (!hasText(sourceMac)) {
+    sourceMac = trimmedVariant(obj["source_mac"]);
+  }
+  if (!hasText(sourceMac)) {
+    sourceMac = mac;
+  }
+  String sourceHostname = trimmedVariant(obj["hostname"]);
+  if (!hasText(sourceHostname)) {
+    sourceHostname = trimmedVariant(obj["source_hostname"]);
+  }
+  if (!hasText(sourceHostname)) {
+    sourceHostname = hostname;
+  }
+  String sourceIp = trimmedVariant(obj["ip"]);
+  if (!hasText(sourceIp)) {
+    sourceIp = trimmedVariant(obj["source_ip"]);
+  }
+  if (!hasText(sourceIp)) {
+    sourceIp = ipStr;
+  }
+
+  if (!hasText(sourceMac) && !channelObj.isNull()) {
+    sourceMac = trimmedVariant(channelObj["mac"]);
+  }
+  if (!hasText(sourceHostname) && !channelObj.isNull()) {
+    sourceHostname = trimmedVariant(channelObj["hostname"]);
+  }
+  if (!hasText(sourceIp) && !channelObj.isNull()) {
+    sourceIp = trimmedVariant(channelObj["ip"]);
+  }
+
+  if (!hasText(channelId) && !hasText(channelLabel)) {
+    return 0;
+  }
+
+  return m_io->updateRemoteValue(sourceMac, sourceIp, channelId, channelLabel,
+                                 raw, value, unit, sourceHostname);
 }
 
 void UdpService::appendLocalInputs(JsonArray &arr) {
@@ -106,7 +320,20 @@ void UdpService::appendLocalInputs(JsonArray &arr) {
     arr.clear();
     return;
   }
-  m_io->describeChannels(arr);
+  DynamicJsonDocument scratch(2048);
+  JsonArray temp = scratch.to<JsonArray>();
+  m_io->describeChannels(temp);
+  for (JsonVariantConst entry : temp) {
+    if (!entry.is<JsonObject>()) {
+      continue;
+    }
+    JsonObjectConst obj = entry.as<JsonObjectConst>();
+    const char *origin = obj["origin"] | "";
+    if (strcmp(origin, "udp-in") == 0) {
+      continue;
+    }
+    arr.add(entry);
+  }
 }
 
 void UdpService::sendDiscoveryReply(const IPAddress &ip, uint16_t port) {

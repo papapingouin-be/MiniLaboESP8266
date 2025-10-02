@@ -3,11 +3,36 @@
 #include "IORegistry.h"
 
 #include <type_traits>
+#include <math.h>
 
 #include "Logger.h"
 #include "ConfigStore.h"
 
 namespace {
+
+String trimmedString(const String &value) {
+  String copy = value;
+  copy.trim();
+  return copy;
+}
+
+String trimmedVariant(JsonVariantConst value) {
+  if (!value.is<const char *>()) {
+    return String();
+  }
+  const char *raw = value.as<const char *>();
+  if (!raw) {
+    return String();
+  }
+  String str(raw);
+  str.trim();
+  return str;
+}
+
+bool hasText(const String &value) { return value.length() > 0; }
+
+bool isFiniteNumber(float value) { return !isnan(value) && !isinf(value); }
+
 template <typename T>
 bool beginAdsDevice(T *ads, std::true_type) {
   return ads->begin();
@@ -86,6 +111,74 @@ void IORegistry::begin(ConfigStore *config) {
     ch.b = obj["b"] | 0.0;
     const char *unit = obj["unit"] | "V";
     ch.unit = unit;
+    ch.isUdpIn = ch.type == "udp-in" || ch.type == "udp";
+    ch.hasRemote = false;
+    ch.remote = RemoteInfo();
+    ch.resolvedMac = String();
+    ch.resolvedIp = String();
+    ch.resolvedHostname = String();
+    ch.lastRemoteRaw = 0.0f;
+    ch.lastRemoteValue = 0.0f;
+    ch.remoteHasRaw = false;
+    ch.remoteHasValue = false;
+    ch.remoteLastUpdate = 0;
+    if (ch.isUdpIn && obj.containsKey("remote") &&
+        obj["remote"].is<JsonObject>()) {
+      JsonObject remoteObj = obj["remote"].as<JsonObject>();
+      ch.hasRemote = true;
+      String mac = trimmedVariant(remoteObj["mac"]);
+      if (!hasText(mac)) {
+        mac = trimmedVariant(remoteObj["source_mac"]);
+      }
+      ch.remote.mac = mac;
+      String ip = trimmedVariant(remoteObj["ip"]);
+      if (!hasText(ip)) {
+        ip = trimmedVariant(remoteObj["source_ip"]);
+      }
+      ch.remote.ip = ip;
+      String host = trimmedVariant(remoteObj["hostname"]);
+      if (!hasText(host)) {
+        host = trimmedVariant(remoteObj["source_hostname"]);
+      }
+      ch.remote.hostname = host;
+      ch.remote.rxPort = remoteObj["rx_port"] | remoteObj["rxPort"] | 0;
+      ch.remote.txPort = remoteObj["tx_port"] | remoteObj["txPort"] | 0;
+      String channelId = trimmedVariant(remoteObj["channelId"]);
+      if (!hasText(channelId)) {
+        channelId = trimmedVariant(remoteObj["channel_id"]);
+      }
+      if (!hasText(channelId)) {
+        channelId = trimmedVariant(remoteObj["channel"]);
+      }
+      ch.remote.channelId = channelId;
+      String channelLabel = trimmedVariant(remoteObj["channelLabel"]);
+      if (!hasText(channelLabel)) {
+        channelLabel = trimmedVariant(remoteObj["channel_label"]);
+      }
+      if (!hasText(channelLabel) && hasText(channelId)) {
+        channelLabel = channelId;
+      }
+      ch.remote.channelLabel = channelLabel;
+      String channelType = trimmedVariant(remoteObj["channelType"]);
+      if (!hasText(channelType)) {
+        channelType = trimmedVariant(remoteObj["channel_type"]);
+      }
+      ch.remote.channelType = channelType;
+      ch.remote.channelIndex = remoteObj["channelIndex"] |
+                               remoteObj["channel_index"] |
+                               remoteObj["index"] | 0;
+      String remoteUnit = trimmedVariant(remoteObj["channelUnit"]);
+      if (!hasText(remoteUnit)) {
+        remoteUnit = trimmedVariant(remoteObj["channel_unit"]);
+      }
+      if (!hasText(remoteUnit)) {
+        remoteUnit = trimmedVariant(remoteObj["unit"]);
+      }
+      ch.remote.channelUnit = remoteUnit;
+      if (!hasText(ch.unit) && hasText(remoteUnit)) {
+        ch.unit = remoteUnit;
+      }
+    }
     if (ch.type == "a0") {
       hasAnalogInput = true;
     }
@@ -96,6 +189,21 @@ void IORegistry::begin(ConfigStore *config) {
     }
     Serial.println(String(F("[IO] Channel loaded: id=")) + ch.id +
                    F(" type=") + ch.type + F(" index=") + String(ch.index));
+    if (ch.isUdpIn && ch.hasRemote) {
+      String remoteDesc = hasText(ch.remote.channelId)
+                              ? ch.remote.channelId
+                              : ch.remote.channelLabel;
+      String hostDesc = hasText(ch.remote.hostname)
+                            ? ch.remote.hostname
+                            : (hasText(ch.remote.ip) ? ch.remote.ip
+                                                     : ch.remote.mac);
+      Serial.println(String(F("[IO]   remote source: ")) + remoteDesc +
+                     F(" host=") + hostDesc);
+      if (m_logger) {
+        m_logger->info(String("  ↳ remote source=") + remoteDesc +
+                       String(" host=") + hostDesc);
+      }
+    }
   }
 
   if (m_logger) {
@@ -123,35 +231,44 @@ void IORegistry::begin(ConfigStore *config) {
   }
 }
 
-int32_t IORegistry::readRaw(const String &id) {
+float IORegistry::readRaw(const String &id) {
   // Search for channel by id
   for (size_t i = 0; i < m_channelCount; i++) {
     if (m_channels[i].id == id) {
       const Channel &ch = m_channels[i];
+      if (ch.isUdpIn) {
+        if (ch.remoteHasRaw) {
+          return ch.lastRemoteRaw;
+        }
+        if (ch.remoteHasValue) {
+          return ch.lastRemoteValue;
+        }
+        return 0.0f;
+      }
       if (ch.type == "a0") {
         // Read the built-in ADC. The ESP8266 ADC returns 0-1023.
         int raw = analogRead(A0);
-        return raw;
+        return static_cast<float>(raw);
       } else if (ch.type == "ads1115") {
         if (!m_adsInitialized) {
           ensureAdsReady();
         }
         if (m_adsInitialized && ch.index < 4) {
           int16_t val = m_ads->readADC_SingleEnded(ch.index);
-          return (int32_t)val;
+          return static_cast<float>(val);
         }
-        return 0;
+        return 0.0f;
       } else {
         // Unknown type; return zero
-        return 0;
+        return 0.0f;
       }
     }
   }
   // If not found return zero
-  return 0;
+  return 0.0f;
 }
 
-float IORegistry::convert(const String &id, int32_t raw) {
+float IORegistry::convert(const String &id, float raw) {
   for (size_t i = 0; i < m_channelCount; i++) {
     if (m_channels[i].id == id) {
       return m_channels[i].k * raw + m_channels[i].b;
@@ -161,7 +278,7 @@ float IORegistry::convert(const String &id, int32_t raw) {
 }
 
 float IORegistry::readValue(const String &id) {
-  int32_t raw = readRaw(id);
+  float raw = readRaw(id);
   return convert(id, raw);
 }
 
@@ -382,6 +499,8 @@ void IORegistry::describeHardware(JsonDocument &doc) {
 void IORegistry::snapshot(JsonDocument &doc) {
   doc.clear();
   JsonArray arr = doc.createNestedArray("channels");
+  const unsigned long now = millis();
+  const unsigned long staleThreshold = 5000; // ms before marking stale
   for (size_t i = 0; i < m_channelCount; i++) {
     const Channel &ch = m_channels[i];
     JsonObject obj = arr.createNestedObject();
@@ -391,9 +510,79 @@ void IORegistry::snapshot(JsonDocument &doc) {
     obj["k"] = ch.k;
     obj["b"] = ch.b;
     obj["unit"] = ch.unit;
-    int32_t raw = readRaw(ch.id);
+    float raw = readRaw(ch.id);
     obj["raw"] = raw;
     obj["value"] = convert(ch.id, raw);
+    if (ch.isUdpIn) {
+      JsonObject remote = obj.createNestedObject("remote");
+      remote["configured"] = ch.hasRemote;
+      if (ch.hasRemote) {
+        if (hasText(ch.remote.channelId)) {
+          remote["channel_id"] = ch.remote.channelId;
+        }
+        if (hasText(ch.remote.channelLabel)) {
+          remote["channel_label"] = ch.remote.channelLabel;
+        }
+        if (hasText(ch.remote.channelType)) {
+          remote["channel_type"] = ch.remote.channelType;
+        }
+        remote["channel_index"] = ch.remote.channelIndex;
+        if (hasText(ch.remote.channelUnit)) {
+          remote["channel_unit"] = ch.remote.channelUnit;
+        }
+        if (hasText(ch.remote.mac)) {
+          remote["mac"] = ch.remote.mac;
+        }
+        if (hasText(ch.remote.ip)) {
+          remote["ip"] = ch.remote.ip;
+        }
+        if (hasText(ch.remote.hostname)) {
+          remote["hostname"] = ch.remote.hostname;
+        }
+        if (ch.remote.rxPort) {
+          remote["rx_port"] = ch.remote.rxPort;
+        }
+        if (ch.remote.txPort) {
+          remote["tx_port"] = ch.remote.txPort;
+        }
+      }
+      const bool hasRemoteData = ch.remoteHasRaw || ch.remoteHasValue;
+      if (hasRemoteData) {
+        unsigned long age = now - ch.remoteLastUpdate;
+        remote["age_ms"] = age;
+        remote["status"] = (age > staleThreshold) ? "stale" : "online";
+        remote["last_update_ms"] = ch.remoteLastUpdate;
+        if (ch.remoteHasRaw) {
+          remote["last_raw"] = ch.lastRemoteRaw;
+        }
+        if (ch.remoteHasValue) {
+          remote["last_value"] = ch.lastRemoteValue;
+        }
+        if (ch.remoteHasRaw) {
+          remote["raw_source"] = "remote_raw";
+        } else if (ch.remoteHasValue) {
+          remote["raw_source"] = "remote_value";
+        }
+      } else {
+        remote["status"] = "waiting";
+        remote["age_ms"] = -1;
+      }
+      if (hasText(ch.resolvedMac)) {
+        remote["source_mac"] = ch.resolvedMac;
+      } else if (hasText(ch.remote.mac)) {
+        remote["source_mac"] = ch.remote.mac;
+      }
+      if (hasText(ch.resolvedIp)) {
+        remote["source_ip"] = ch.resolvedIp;
+      } else if (hasText(ch.remote.ip)) {
+        remote["source_ip"] = ch.remote.ip;
+      }
+      if (hasText(ch.resolvedHostname)) {
+        remote["source_hostname"] = ch.resolvedHostname;
+      } else if (hasText(ch.remote.hostname)) {
+        remote["source_hostname"] = ch.remote.hostname;
+      }
+    }
   }
 }
 
@@ -408,5 +597,203 @@ void IORegistry::describeChannels(JsonArray &arr) const {
     obj["k"] = ch.k;
     obj["b"] = ch.b;
     obj["unit"] = ch.unit;
+    obj["origin"] = ch.isUdpIn ? "udp-in" : ch.type;
+    if (ch.hasRemote) {
+      JsonObject remote = obj.createNestedObject("remote");
+      if (hasText(ch.remote.channelId)) {
+        remote["channel_id"] = ch.remote.channelId;
+      }
+      if (hasText(ch.remote.channelLabel)) {
+        remote["channel_label"] = ch.remote.channelLabel;
+      }
+      if (hasText(ch.remote.channelType)) {
+        remote["channel_type"] = ch.remote.channelType;
+      }
+      remote["channel_index"] = ch.remote.channelIndex;
+      if (hasText(ch.remote.channelUnit)) {
+        remote["channel_unit"] = ch.remote.channelUnit;
+      }
+      if (hasText(ch.remote.mac)) {
+        remote["mac"] = ch.remote.mac;
+      }
+      if (hasText(ch.remote.ip)) {
+        remote["ip"] = ch.remote.ip;
+      }
+      if (hasText(ch.remote.hostname)) {
+        remote["hostname"] = ch.remote.hostname;
+      }
+    }
+    if (ch.isUdpIn) {
+      JsonObject runtime = obj.createNestedObject("runtime");
+      runtime["has_raw"] = ch.remoteHasRaw;
+      runtime["has_value"] = ch.remoteHasValue;
+      runtime["last_update_ms"] = ch.remoteLastUpdate;
+      if (hasText(ch.resolvedMac)) {
+        runtime["source_mac"] = ch.resolvedMac;
+      } else if (hasText(ch.remote.mac)) {
+        runtime["source_mac"] = ch.remote.mac;
+      }
+      if (hasText(ch.resolvedIp)) {
+        runtime["source_ip"] = ch.resolvedIp;
+      } else if (hasText(ch.remote.ip)) {
+        runtime["source_ip"] = ch.remote.ip;
+      }
+      if (hasText(ch.resolvedHostname)) {
+        runtime["source_hostname"] = ch.resolvedHostname;
+      } else if (hasText(ch.remote.hostname)) {
+        runtime["source_hostname"] = ch.remote.hostname;
+      }
+    }
   }
+}
+
+size_t IORegistry::updateRemoteValue(const String &mac, const String &ip,
+                                     const String &channelId,
+                                     const String &channelLabel, float raw,
+                                     float value, const String &unit,
+                                     const String &hostname) {
+  String macTrim = trimmedString(mac);
+  String ipTrim = trimmedString(ip);
+  String idTrim = trimmedString(channelId);
+  String labelTrim = trimmedString(channelLabel);
+  String unitTrim = trimmedString(unit);
+  String hostTrim = trimmedString(hostname);
+
+  const bool hasRaw = isFiniteNumber(raw);
+  const bool hasValue = isFiniteNumber(value);
+  const unsigned long now = millis();
+  size_t updated = 0;
+
+  for (size_t i = 0; i < m_channelCount; i++) {
+    Channel &ch = m_channels[i];
+    if (!ch.isUdpIn)
+      continue;
+
+    bool idMatches = false;
+    if (ch.hasRemote) {
+      if (hasText(ch.remote.channelId) && hasText(idTrim) &&
+          ch.remote.channelId.equalsIgnoreCase(idTrim)) {
+        idMatches = true;
+      } else if (hasText(ch.remote.channelId) && hasText(labelTrim) &&
+                 ch.remote.channelId.equalsIgnoreCase(labelTrim)) {
+        idMatches = true;
+      } else if (hasText(ch.remote.channelLabel) && hasText(idTrim) &&
+                 ch.remote.channelLabel.equalsIgnoreCase(idTrim)) {
+        idMatches = true;
+      } else if (hasText(ch.remote.channelLabel) && hasText(labelTrim) &&
+                 ch.remote.channelLabel.equalsIgnoreCase(labelTrim)) {
+        idMatches = true;
+      }
+    } else {
+      if (hasText(idTrim) && ch.id.equalsIgnoreCase(idTrim)) {
+        idMatches = true;
+      } else if (hasText(labelTrim) && ch.id.equalsIgnoreCase(labelTrim)) {
+        idMatches = true;
+      }
+    }
+    if (!idMatches)
+      continue;
+
+    bool requireHostMatch = false;
+    bool hostMatches = false;
+    if (ch.hasRemote) {
+      if (hasText(ch.remote.mac)) {
+        requireHostMatch = true;
+        if (hasText(macTrim) && ch.remote.mac.equalsIgnoreCase(macTrim)) {
+          hostMatches = true;
+        }
+      }
+      if (hasText(ch.remote.ip)) {
+        requireHostMatch = true;
+        if (hasText(ipTrim) && ch.remote.ip.equalsIgnoreCase(ipTrim)) {
+          hostMatches = true;
+        }
+      }
+      if (hasText(ch.remote.hostname)) {
+        requireHostMatch = true;
+        if (hasText(hostTrim) &&
+            ch.remote.hostname.equalsIgnoreCase(hostTrim)) {
+          hostMatches = true;
+        }
+      }
+      if (requireHostMatch && !hostMatches) {
+        continue;
+      }
+    }
+
+    ch.remoteLastUpdate = now;
+    if (hasRaw) {
+      ch.lastRemoteRaw = raw;
+      ch.remoteHasRaw = true;
+    }
+    if (hasValue) {
+      ch.lastRemoteValue = value;
+      ch.remoteHasValue = true;
+    } else if (hasRaw && !ch.remoteHasValue) {
+      ch.lastRemoteValue = raw;
+    }
+
+    if (hasText(unitTrim)) {
+      if (!hasText(ch.remote.channelUnit)) {
+        ch.remote.channelUnit = unitTrim;
+      }
+      if (!hasText(ch.unit)) {
+        ch.unit = unitTrim;
+      }
+    }
+
+    if (ch.hasRemote) {
+      if (!hasText(ch.remote.channelId) && hasText(idTrim)) {
+        ch.remote.channelId = idTrim;
+      }
+      if (!hasText(ch.remote.channelLabel) && hasText(labelTrim)) {
+        ch.remote.channelLabel = labelTrim;
+      }
+    }
+
+    if (hasText(macTrim)) {
+      ch.resolvedMac = macTrim;
+    }
+    if (hasText(ipTrim)) {
+      ch.resolvedIp = ipTrim;
+    }
+    if (hasText(hostTrim)) {
+      ch.resolvedHostname = hostTrim;
+    }
+
+    if (!ch.hasRemote) {
+      if (hasText(idTrim)) {
+        ch.remote.channelId = idTrim;
+      }
+      if (hasText(labelTrim)) {
+        ch.remote.channelLabel = labelTrim;
+      } else if (!hasText(ch.remote.channelLabel) && hasText(idTrim)) {
+        ch.remote.channelLabel = idTrim;
+      }
+      ch.hasRemote = hasText(ch.remote.channelId) ||
+                     hasText(ch.remote.channelLabel);
+    }
+    if (!hasText(ch.remote.mac) && hasText(macTrim)) {
+      ch.remote.mac = macTrim;
+    }
+    if (!hasText(ch.remote.ip) && hasText(ipTrim)) {
+      ch.remote.ip = ipTrim;
+    }
+    if (!hasText(ch.remote.hostname) && hasText(hostTrim)) {
+      ch.remote.hostname = hostTrim;
+    }
+
+    updated++;
+  }
+
+  if (updated && m_logger) {
+    String source = hasText(hostTrim)
+                        ? hostTrim
+                        : (hasText(macTrim) ? macTrim : ipTrim);
+    m_logger->debug(String("UDP-IN update from ") + source +
+                    String(" matched ") + String(updated) +
+                    String(" channel(s)"));
+  }
+
+  return updated;
 }

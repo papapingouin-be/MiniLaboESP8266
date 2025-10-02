@@ -33,6 +33,8 @@ public:
 private:
   void handleIncomingPacket(const char *buf, int len, const IPAddress &ip,
                             uint16_t port);
+  size_t applyRemoteValue(JsonVariantConst payload, const String &mac,
+                          const String &hostname, const String &ip);
   void appendLocalInputs(JsonArray &arr);
   void sendDiscoveryReply(const IPAddress &ip, uint16_t port);
 
