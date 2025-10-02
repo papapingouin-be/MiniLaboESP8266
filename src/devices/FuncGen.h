@@ -49,6 +49,8 @@ private:
   unsigned long m_lastMicros;
   bool m_disabledLogged;
   bool m_zeroFreqLogged;
+  bool m_lastEnabledState;
+  float m_lastDcLevelLogged;
 
   // Load settings from funcgen.json. Called during begin().
   void loadFromConfig();

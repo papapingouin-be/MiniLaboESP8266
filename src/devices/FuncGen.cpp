@@ -4,11 +4,13 @@
 
 #include "core/Logger.h"
 #include "core/ConfigStore.h"
+#include <math.h>
 
 FuncGen::FuncGen(Logger *logger, ConfigStore *config)
     : m_settings{SINE, 0.0f, 0.0f, 0.5f, false}, m_logger(logger),
       m_config(config), m_phase(0.0f), m_lastMicros(0),
-      m_disabledLogged(false), m_zeroFreqLogged(false) {}
+      m_disabledLogged(false), m_zeroFreqLogged(false),
+      m_lastEnabledState(false), m_lastDcLevelLogged(-1.0f) {}
 
 void FuncGen::begin() {
   // Initialise the DAC. It defaults to address 0x60. If the device is
@@ -21,6 +23,8 @@ void FuncGen::begin() {
   m_lastMicros = micros();
   m_disabledLogged = false;
   m_zeroFreqLogged = false;
+  m_lastEnabledState = m_settings.enabled;
+  m_lastDcLevelLogged = -1.0f;
 }
 
 void FuncGen::loadFromConfig() {
@@ -146,6 +150,16 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
 }
 
 void FuncGen::loop() {
+  if (m_lastEnabledState != m_settings.enabled) {
+    if (m_logger) {
+      m_logger->info(String(F("FuncGen loop sees enabled=")) +
+                     (m_settings.enabled ? F("true") : F("false")));
+    }
+    m_lastEnabledState = m_settings.enabled;
+    if (!m_settings.enabled) {
+      m_lastDcLevelLogged = -1.0f;
+    }
+  }
   if (!m_settings.enabled) {
     if (m_logger && !m_disabledLogged) {
       m_logger->debug(F("FuncGen loop skipped: generator disabled"));
@@ -164,6 +178,14 @@ void FuncGen::loop() {
     float value = m_settings.amp;
     if (value < 0.0f) value = 0.0f;
     if (value > 1.0f) value = 1.0f;
+    if (m_logger) {
+      if (m_lastDcLevelLogged < 0.0f ||
+          fabsf(m_lastDcLevelLogged - value) >= 0.01f) {
+        m_logger->info(String(F("FuncGen DC level => ")) +
+                       String(value * 100.0f, 1) + F("% de l'échelle"));
+        m_lastDcLevelLogged = value;
+      }
+    }
     uint16_t dacVal = (uint16_t)(value * 4095.0f + 0.5f);
     m_dac.setVoltage(dacVal, false);
     return;
