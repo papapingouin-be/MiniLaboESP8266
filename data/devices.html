@@ -1661,17 +1661,21 @@
         const resp = await j(`/api/funcgen${query}`);
         if(resp.ok){
           const payload = await resp.json().catch(()=>null);
+          console.debug('[FuncGen] Lecture /api/funcgen réussie', payload);
           if(payload && typeof payload === 'object') return payload;
           return payload;
         }
+        console.warn('[FuncGen] /api/funcgen a renvoyé', resp.status);
       }catch(err){
         console.warn(err);
       }
       try{
         const fallback = await fetch('funcgen.json',{cache:'no-cache'});
         if(fallback.ok){
+          console.warn('[FuncGen] Utilisation du fallback funcgen.json');
           return await fallback.json();
         }
+        console.warn('[FuncGen] Échec du fallback funcgen.json', fallback.status);
       }catch(err){
         console.warn(err);
       }
@@ -1681,10 +1685,12 @@
       if(funcApplying) return true;
       const status = await fetchFuncStatus(funcState.target);
       if(status && typeof status === 'object' && typeof status.enabled === 'boolean'){
+        console.log('[FuncGen] Statut actualisé', status);
         const message = status.enabled ? 'Sortie active (confirmée)' : 'Sortie inactive (confirmée)';
         setFuncEnabled(status.enabled, message);
         return true;
       }
+      console.warn('[FuncGen] Statut invalide ou indisponible', status);
       updateFuncStatusDisplay('error','Impossible de vérifier la sortie');
       return false;
     }
@@ -2273,6 +2279,7 @@
       if(Number.isFinite(funcState.duty_pct)) payload.duty_pct = funcState.duty_pct;
       if(Number.isFinite(funcState.phase_deg)) payload.phase_deg = funcState.phase_deg;
       if(target) payload.target = target;
+      console.log('[FuncGen] Demande de mise à jour', payload);
       renderFuncButton(desiredEnabled);
       updateFuncStatusDisplay('pending', desiredEnabled ? 'Activation demandée…' : 'Arrêt demandé…');
       if(funcTargetPill) funcTargetPill.textContent = 'cible : ' + (target || '—');
@@ -2290,6 +2297,7 @@
           }
         }
         const ack = isPlainObject(raw) ? raw : null;
+        console.log('[FuncGen] Réponse du backend', raw);
         const ackEnabled = coerceBool(ack?.enabled);
         const ackOk = coerceBool(ack?.ok);
         const ackSuccess = coerceBool(ack?.success);
