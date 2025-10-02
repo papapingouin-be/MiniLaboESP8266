@@ -2246,6 +2246,18 @@
         funcStatusPollStarted = true;
       }
     }
+    function coerceBool(value){
+      if(typeof value === 'boolean') return value;
+      if(typeof value === 'string'){
+        const txt = value.trim().toLowerCase();
+        if(txt === 'true') return true;
+        if(txt === 'false') return false;
+      }
+      return null;
+    }
+    function isPlainObject(value){
+      return !!value && typeof value === 'object' && !Array.isArray(value);
+    }
     async function applyFunc(){
       if(funcApplying) return;
       const target = funcTargetSelect ? funcTargetSelect.value : funcState.target;
@@ -2267,17 +2279,31 @@
       funcApplying = true;
       try{
         const r = await j('/api/funcgen',{method:'POST', body: JSON.stringify(payload)});
-        let ok = null;
+        let raw = null;
+        let parseFailed = false;
         if(r.ok){
-          ok = await r.json().catch(()=>({}));
+          try{
+            raw = await r.json();
+          }catch(err){
+            parseFailed = true;
+            console.warn('FuncGen response parse error', err);
+          }
         }
-        const okIsObject = ok && typeof ok === 'object';
-        const success = r.ok && (!okIsObject || ok.ok === true || ok.success === true || ok.status === 'ok' || typeof ok.enabled === 'boolean');
-        if(success){
-          const reportedEnabled = okIsObject && typeof ok.enabled === 'boolean' ? ok.enabled : desiredEnabled;
-          const message = okIsObject && typeof ok.message === 'string' && ok.message ? ok.message : (reportedEnabled ? 'Sortie active (confirmée)' : 'Sortie inactive (confirmée)');
-          setFuncEnabled(reportedEnabled, message);
-          setTimeout(()=>{ refreshFuncStatus(); }, 500);
+        const ack = isPlainObject(raw) ? raw : null;
+        const ackEnabled = coerceBool(ack?.enabled);
+        const ackOk = coerceBool(ack?.ok);
+        const ackSuccess = coerceBool(ack?.success);
+        const ackStatus = typeof ack?.status === 'string' ? ack.status.trim().toLowerCase() : '';
+        const backendAccepted = r.ok && (parseFailed || !ack || ackOk === true || ackSuccess === true || ackStatus === 'ok' || ackEnabled !== null);
+        if(backendAccepted){
+          const reportedEnabled = ackEnabled !== null ? ackEnabled : desiredEnabled;
+          const ackMessage = typeof ack?.message === 'string' && ack.message ? ack.message : null;
+          const confirmationKnown = ackOk === true || ackSuccess === true || ackStatus === 'ok' || ackEnabled !== null;
+          const defaultMessage = confirmationKnown
+            ? (reportedEnabled ? 'Sortie active (confirmée)' : 'Sortie inactive (confirmée)')
+            : (reportedEnabled ? 'Sortie active (à confirmer)' : 'Sortie inactive (à confirmer)');
+          setFuncEnabled(reportedEnabled, ackMessage || defaultMessage);
+          setTimeout(()=>{ refreshFuncStatus(); }, confirmationKnown ? 500 : 800);
         }else{
           renderFuncButton(funcState.enabled);
           updateFuncStatusDisplay('error','Échec de la mise à jour de la sortie');
