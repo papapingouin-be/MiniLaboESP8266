@@ -101,6 +101,7 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
   }
 
   Settings old = m_settings;
+  bool transitionToDisabled = false;
   if (doc.containsKey("type")) {
     const char *typeStr = doc["type"].as<const char *>();
     if (strcasecmp(typeStr, "sine") == 0) {
@@ -127,7 +128,9 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
     m_settings.offset = pct / 100.0f;
   }
   if (doc.containsKey("enabled")) {
-    m_settings.enabled = doc["enabled"];
+    bool newEnabled = doc["enabled"];
+    transitionToDisabled = old.enabled && !newEnabled;
+    m_settings.enabled = newEnabled;
   }
   if (doc.containsKey("target")) {
     const char *target = doc["target"].as<const char *>();
@@ -177,6 +180,13 @@ void FuncGen::updateSettings(const JsonDocument &doc) {
   m_zeroFreqLogged = false;
   if (!old.targetId.equalsIgnoreCase(m_settings.targetId)) {
     resolveTargetBinding();
+  }
+  if (!m_settings.enabled) {
+    m_phase = 0.0f;
+    if (transitionToDisabled || m_lastOutputValue > 0.0005f ||
+        m_lastOutputValue < 0.0f) {
+      ensureOutputDisabled();
+    }
   }
   // Persist settings to funcgen.json
   JsonDocument &cfg = m_config->getConfig("funcgen");
