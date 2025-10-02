@@ -446,33 +446,6 @@
     .func-status-indicator[data-state="pending"] .dot{background:var(--warn); box-shadow:0 0 10px rgba(255,184,107,.6);}
     .func-status-indicator[data-state="error"]{color:var(--danger); opacity:1;}
     .func-status-indicator[data-state="error"] .dot{background:var(--danger); box-shadow:0 0 10px rgba(255,107,107,.6);}
-    .func-log{
-      margin-top:12px;
-      background:rgba(10,16,24,.7);
-      border:1px solid #1c2534;
-      border-radius:10px;
-      padding:10px 12px;
-      font-size:12px;
-      max-height:160px;
-      overflow:auto;
-      display:flex;
-      flex-direction:column-reverse;
-      gap:6px;
-    }
-    .func-log:empty{display:none;}
-    .func-log-entry{
-      line-height:1.4;
-      color:#cbd5f5;
-      display:flex;
-      align-items:flex-start;
-      gap:6px;
-    }
-    .func-log-entry .func-log-time{color:#7b8bab; font-family:monospace; font-size:11px; opacity:.8;}
-    .func-log-entry.info{color:#cbd5f5;}
-    .func-log-entry.success{color:#8af5c9;}
-    .func-log-entry.warn{color:#ffca8a;}
-    .func-log-entry.error{color:#ff8a8a;}
-
     /* DMM styles */
     .dmm-display{
       background: radial-gradient(600px 200px at 50% -10%, #0c111b 0%, #0c111b 60%, #0a0f18 100%);
@@ -828,7 +801,6 @@
                       <span class="label">Sortie inactive</span>
                     </div>
                     <div class="func-hint" id="func-hint">Sélectionne une sortie pour afficher ses possibilités et ajuster ton signal.</div>
-                    <div class="func-log" id="func-log" aria-live="polite" aria-label="Journal des actions du générateur"></div>
                   </div>
                 </td>
               </tr>
@@ -3010,7 +2982,8 @@
         }
         return;
       }
-      scopeManualTimebase = null;
+      const previousManual = scopeManualTimebase;
+      scopeManualTimebase = ms;
       if(scopeTimebaseStatus){ scopeTimebaseStatus.textContent = 'Envoi…'; }
       const patch = {
         timebase: ms,
@@ -3022,6 +2995,7 @@
       }
       const ok = await saveScopeConfigPatch(patch);
       if(!ok){
+        scopeManualTimebase = previousManual;
         if(scopeTimebaseStatus){
           scopeTimebaseStatus.textContent = scopeConfigUnavailable ? 'Mode hors ligne.' : 'Erreur de réglage.';
           setTimeout(()=>{ if(scopeTimebaseStatus) scopeTimebaseStatus.textContent=''; }, 2000);
@@ -3045,7 +3019,8 @@
         }
         return;
       }
-      scopeManualVoltPerDiv = null;
+      const previousManual = scopeManualVoltPerDiv;
+      scopeManualVoltPerDiv = volts;
       if(scopeVoltStatus){ scopeVoltStatus.textContent = 'Envoi…'; }
       const patch = {
         volts_per_div: volts,
@@ -3056,6 +3031,7 @@
       }
       const ok = await saveScopeConfigPatch(patch);
       if(!ok){
+        scopeManualVoltPerDiv = previousManual;
         if(scopeVoltStatus){
           scopeVoltStatus.textContent = scopeConfigUnavailable ? 'Mode hors ligne.' : 'Erreur de réglage.';
           setTimeout(()=>{ if(scopeVoltStatus) scopeVoltStatus.textContent=''; }, 2000);
@@ -3406,8 +3382,18 @@
 
     function applyScopeData(data){
       if(!scopeUsingFallback && !scopeApiUnavailable){
-        scopeManualVoltPerDiv = null;
-        scopeManualTimebase = null;
+        if(scopeManualVoltPerDiv !== null && typeof data.volts_per_div === 'number' && isFinite(data.volts_per_div)){
+          const diff = Math.abs(data.volts_per_div - scopeManualVoltPerDiv);
+          if(diff <= 1e-6){
+            scopeManualVoltPerDiv = null;
+          }
+        }
+        if(scopeManualTimebase !== null && typeof data.timebase_ms_per_div === 'number' && isFinite(data.timebase_ms_per_div)){
+          const diff = Math.abs(data.timebase_ms_per_div - scopeManualTimebase);
+          if(diff <= 1e-6){
+            scopeManualTimebase = null;
+          }
+        }
       }
 
       const rawChannels = data.channels && typeof data.channels === 'object' ? data.channels : {};
