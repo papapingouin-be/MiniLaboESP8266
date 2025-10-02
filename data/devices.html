@@ -2403,6 +2403,7 @@
       const desiredEnabled = !funcState.enabled;
       const wave = funcState.wave || 'sine';
       ensureDcConsistency();
+      const isStopping = funcState.enabled && !desiredEnabled;
       const payload = {
         type: wave,
         freq: Number.isFinite(funcState.freq) ? funcState.freq : 0,
@@ -2411,13 +2412,24 @@
         enabled: desiredEnabled
       };
       if(wave === 'dc'){
-        const dcLevel = Number.isFinite(funcState.amp_pct) ? funcState.amp_pct : 0;
-        payload.amp_pct = dcLevel;
-        payload.offset_pct = dcLevel;
+        if(isStopping){
+          payload.amp_pct = 0;
+          payload.offset_pct = 0;
+        }else{
+          const dcLevel = Number.isFinite(funcState.amp_pct) ? funcState.amp_pct : 0;
+          payload.amp_pct = dcLevel;
+          payload.offset_pct = dcLevel;
+        }
         payload.freq = 0;
       }else{
-        if(Number.isFinite(funcState.duty_pct)) payload.duty_pct = funcState.duty_pct;
-        if(Number.isFinite(funcState.phase_deg)) payload.phase_deg = funcState.phase_deg;
+        if(isStopping){
+          payload.amp_pct = 0;
+          payload.offset_pct = 0;
+          payload.freq = 0;
+        }else{
+          if(Number.isFinite(funcState.duty_pct)) payload.duty_pct = funcState.duty_pct;
+          if(Number.isFinite(funcState.phase_deg)) payload.phase_deg = funcState.phase_deg;
+        }
       }
       if(target) payload.target = target;
       console.log('[FuncGen] Demande de mise à jour', payload);
