@@ -2006,6 +2006,27 @@
         funcParamButtons.appendChild(btn);
       });
     }
+    function ensureDcConsistency(){
+      if(funcState.wave !== 'dc') return;
+      const ampDef = FUNC_PARAM_DEFS.amp;
+      const offsetDef = FUNC_PARAM_DEFS.offset;
+      const ctx = getFuncContext();
+      let level = Number.isFinite(funcState.amp_pct) ? funcState.amp_pct : funcState.offset_pct;
+      if(!Number.isFinite(level)){
+        const fallback = ampDef ? (typeof ampDef.default === 'function' ? ampDef.default(ctx) : ampDef.default) : 0;
+        level = Number.isFinite(fallback) ? fallback : 0;
+      }
+      level = ensureParamWithinBounds('amp', level);
+      funcState.amp_pct = level;
+      if(offsetDef){
+        funcState.offset_pct = ensureParamWithinBounds('offset', level);
+      }else{
+        funcState.offset_pct = level;
+      }
+      funcState.freq = 0;
+      if(Number.isFinite(funcState.duty_pct)) funcState.duty_pct = ensureParamWithinBounds('duty', funcState.duty_pct);
+      if(Number.isFinite(funcState.phase_deg)) funcState.phase_deg = 0;
+    }
     function renderFuncWaveButtons(profile){
       if(!funcWaveList) return;
       funcWaveList.innerHTML = '';
@@ -2025,6 +2046,7 @@
         btn.addEventListener('click', ()=>{
           if(funcState.wave !== wave){
             funcState.wave = wave;
+            ensureDcConsistency();
             updateWaveButtons();
             renderFuncParamButtons(funcCurrentProfile);
             updateFuncDisplay();
@@ -2050,8 +2072,10 @@
         value = ensureParamWithinBounds(param, value);
         funcState[key] = value;
       });
+      ensureDcConsistency();
     }
     function updateFuncDisplay(){
+      ensureDcConsistency();
       const ctx = getFuncContext();
       const activeParams = getActiveParams(ctx.profile);
       if(activeParams.length && !activeParams.includes(funcState.currentParam)){
@@ -2124,6 +2148,9 @@
       next = ensureParamWithinBounds(param, next);
       const decimals = typeof def.decimals === 'function' ? def.decimals(ctx, next) : (def.decimals ?? 0);
       funcState[def.key] = Number.isFinite(next) ? parseFloat(next.toFixed(Math.min(6, Math.max(decimals, 2)))) : current;
+      if(funcState.wave === 'dc' && def.key === 'amp_pct'){
+        ensureDcConsistency();
+      }
       updateFuncDisplay();
     }
     function normaliseOutputEntry(entry){
@@ -2238,6 +2265,7 @@
         if(typeof cfg.target === 'string') funcState.target = cfg.target;
         if(typeof cfg.enabled === 'boolean') funcState.enabled = cfg.enabled;
       }
+      ensureDcConsistency();
       if(funcOutputs.length){
         const preferred = funcState.target && funcOutputs.some(o=>o.id === funcState.target) ? funcState.target : funcOutputs[0].id;
         funcTargetSelect.value = preferred;
@@ -2269,15 +2297,24 @@
       const target = funcTargetSelect ? funcTargetSelect.value : funcState.target;
       if(target) funcState.target = target;
       const desiredEnabled = !funcState.enabled;
+      const wave = funcState.wave || 'sine';
+      ensureDcConsistency();
       const payload = {
-        type: funcState.wave || 'sine',
+        type: wave,
         freq: Number.isFinite(funcState.freq) ? funcState.freq : 0,
         amp_pct: Number.isFinite(funcState.amp_pct) ? funcState.amp_pct : 0,
         offset_pct: Number.isFinite(funcState.offset_pct) ? funcState.offset_pct : 0,
         enabled: desiredEnabled
       };
-      if(Number.isFinite(funcState.duty_pct)) payload.duty_pct = funcState.duty_pct;
-      if(Number.isFinite(funcState.phase_deg)) payload.phase_deg = funcState.phase_deg;
+      if(wave === 'dc'){
+        const dcLevel = Number.isFinite(funcState.amp_pct) ? funcState.amp_pct : 0;
+        payload.amp_pct = dcLevel;
+        payload.offset_pct = dcLevel;
+        payload.freq = 0;
+      }else{
+        if(Number.isFinite(funcState.duty_pct)) payload.duty_pct = funcState.duty_pct;
+        if(Number.isFinite(funcState.phase_deg)) payload.phase_deg = funcState.phase_deg;
+      }
       if(target) payload.target = target;
       console.log('[FuncGen] Demande de mise à jour', payload);
       renderFuncButton(desiredEnabled);
