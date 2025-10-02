@@ -1,0 +1,266 @@
+[
+  {
+    "type": "pwm_rc",
+    "label": "PWM filtrée (RC)",
+    "functions": [
+      {
+        "id": "dc",
+        "label": "Continu (PWM lissée)",
+        "frequency": 5000,
+        "notes": "Variation du rapport cyclique pour générer un niveau continu qui sera filtré par le RC.",
+        "code": [
+          "float level = dcFraction;",
+          "if (level < 0.0f) level = 0.0f;",
+          "if (level > 1.0f) level = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(5000);",
+          "const uint16_t pwm = (uint16_t)roundf(level * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "sine",
+        "label": "Sinusoïde",
+        "frequency": 5000,
+        "notes": "La sinusoïde est calculée dans FuncGen::waveformSample puis convertie en rapport cyclique PWM.",
+        "code": [
+          "const float sample = 0.5f * (1.0f + sinf(phase * 2.0f * PI));",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(5000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "square",
+        "label": "Carré",
+        "frequency": 5000,
+        "notes": "L’état haut ou bas est défini par la phase (<0,5 → +1, sinon −1).",
+        "code": [
+          "const float sample = phase < 0.5f ? 1.0f : -1.0f;",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(5000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "triangle",
+        "label": "Triangle",
+        "frequency": 5000,
+        "notes": "Triangle symétrique (−1 → +1) transformé en rapport cyclique lissé.",
+        "code": [
+          "float sample = phase < 0.5f ? 4.0f * phase - 1.0f : 3.0f - 4.0f * phase;",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(5000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "mcp4725",
+    "label": "DAC I²C MCP4725",
+    "functions": [
+      {
+        "id": "dc",
+        "label": "Continu (DAC)",
+        "notes": "Conversion du niveau normalisé [0,1] en 12 bits pour le MCP4725.",
+        "code": [
+          "float level = dcFraction;",
+          "if (level < 0.0f) level = 0.0f;",
+          "if (level > 1.0f) level = 1.0f;",
+          "const uint16_t dac = (uint16_t)roundf(level * 4095.0f);",
+          "m_dac.setVoltage(dac, false);"
+        ]
+      },
+      {
+        "id": "sine",
+        "label": "Sinusoïde",
+        "notes": "La valeur calculée est directement envoyée au DAC, sans étape PWM.",
+        "code": [
+          "const float sample = 0.5f * (1.0f + sinf(phase * 2.0f * PI));",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "const uint16_t dac = (uint16_t)roundf(value * 4095.0f);",
+          "m_dac.setVoltage(dac, false);"
+        ]
+      },
+      {
+        "id": "square",
+        "label": "Carré",
+        "notes": "Commande haute ou basse suivant la phase, convertie en 12 bits.",
+        "code": [
+          "const float sample = phase < 0.5f ? 1.0f : -1.0f;",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "const uint16_t dac = (uint16_t)roundf(value * 4095.0f);",
+          "m_dac.setVoltage(dac, false);"
+        ]
+      },
+      {
+        "id": "triangle",
+        "label": "Triangle",
+        "notes": "Forme triangulaire normalisée envoyée directement au MCP4725.",
+        "code": [
+          "float sample = phase < 0.5f ? 4.0f * phase - 1.0f : 3.0f - 4.0f * phase;",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "const uint16_t dac = (uint16_t)roundf(value * 4095.0f);",
+          "m_dac.setVoltage(dac, false);"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "pwm_0_10v",
+    "label": "Convertisseur PWM → 0–10 V",
+    "functions": [
+      {
+        "id": "dc",
+        "label": "Continu (module 0–10 V)",
+        "frequency": 2000,
+        "notes": "Le module industriel convertit le rapport cyclique 0–100 % en 0–10 V.",
+        "code": [
+          "float level = dcFraction;",
+          "if (level < 0.0f) level = 0.0f;",
+          "if (level > 1.0f) level = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(2000);",
+          "const uint16_t pwm = (uint16_t)roundf(level * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "sine",
+        "label": "Sinusoïde",
+        "frequency": 2000,
+        "notes": "La PWM module le convertisseur 0–10 V après adaptation analogique.",
+        "code": [
+          "const float sample = 0.5f * (1.0f + sinf(phase * 2.0f * PI));",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(2000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "square",
+        "label": "Carré",
+        "frequency": 2000,
+        "notes": "Les états haut/bas PWM correspondent à 0 V et 10 V en sortie du module.",
+        "code": [
+          "const float sample = phase < 0.5f ? 1.0f : -1.0f;",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(2000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "triangle",
+        "label": "Triangle",
+        "frequency": 2000,
+        "notes": "La tension suit la modulation PWM une fois filtrée par l’étage du module.",
+        "code": [
+          "float sample = phase < 0.5f ? 4.0f * phase - 1.0f : 3.0f - 4.0f * phase;",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(2000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "charge_pump_doubler",
+    "label": "Pompe de charge doubleur",
+    "functions": [
+      {
+        "id": "dc",
+        "label": "Continu (pompe de charge)",
+        "frequency": 4000,
+        "notes": "La pompe de charge double la tension effective sur des charges légères grâce au rapport cyclique PWM.",
+        "code": [
+          "float level = dcFraction;",
+          "if (level < 0.0f) level = 0.0f;",
+          "if (level > 1.0f) level = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(4000);",
+          "const uint16_t pwm = (uint16_t)roundf(level * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "sine",
+        "label": "Sinusoïde",
+        "frequency": 4000,
+        "notes": "Le rapport cyclique sinusoïdal charge/décharge les condensateurs pour obtenir ≈2 × Vin.",
+        "code": [
+          "const float sample = 0.5f * (1.0f + sinf(phase * 2.0f * PI));",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(4000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "square",
+        "label": "Carré",
+        "frequency": 4000,
+        "notes": "Les alternances haute/basse alimentent successivement les condensateurs de la pompe de charge.",
+        "code": [
+          "const float sample = phase < 0.5f ? 1.0f : -1.0f;",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(4000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      },
+      {
+        "id": "triangle",
+        "label": "Triangle",
+        "frequency": 4000,
+        "notes": "Commande PWM triangulaire appliquée à la pompe de charge (même principe que les autres formes).",
+        "code": [
+          "float sample = phase < 0.5f ? 4.0f * phase - 1.0f : 3.0f - 4.0f * phase;",
+          "float value = offset + amplitude * sample;",
+          "if (value < 0.0f) value = 0.0f;",
+          "if (value > 1.0f) value = 1.0f;",
+          "analogWriteRange(1023);",
+          "analogWriteFreq(4000);",
+          "const uint16_t pwm = (uint16_t)roundf(value * 1023.0f);",
+          "analogWrite(gpio, pwm);"
+        ]
+      }
+    ]
+  }
+]
