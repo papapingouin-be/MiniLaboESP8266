@@ -217,6 +217,38 @@
       gap: 0.75rem;
     }
 
+    .udp-select-group {
+      display: grid;
+      gap: 0.6rem;
+      background: #eef3ff;
+      border: 1px solid #c6d4fb;
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+    }
+
+    .udp-select-group label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      font-size: 0.9rem;
+      color: #1f3d7a;
+    }
+
+    .udp-select-group select {
+      padding: 0.4rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid #a8baf0;
+      font-size: 0.9rem;
+      background: #fff;
+    }
+
+    .udp-select-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
     .udp-device {
       border: 1px solid #ccd8ef;
       border-radius: 10px;
@@ -596,6 +628,15 @@
           <span id="udpScanStatus" class="udp-scan-status"></span>
         </div>
         <p id="udpSelectionSummary" class="legend">Sélectionnez une ligne de type « udp-in » pour configurer la source distante.</p>
+        <div id="udpSelectGroup" class="udp-select-group" hidden>
+          <label id="udpInputSelectLabel">
+            Entrée distante détectée
+            <select id="udpInputSelect"></select>
+          </label>
+          <div class="udp-select-actions">
+            <button type="button" id="udpAssignButton">Associer à la ligne sélectionnée</button>
+          </div>
+        </div>
         <div id="udpDevicesList" class="udp-devices"></div>
       </section>
     </aside>
@@ -697,6 +738,8 @@
   const UDP_PANEL_TYPES = new Set(['udp', 'udp-in']);
   let udpScanResults = [];
   let udpScanInProgress = false;
+  const udpOptionLookup = new Map();
+  let suppressUdpSelectChange = false;
 
   function isUdpType(value) {
     if (!value) return false;
@@ -753,6 +796,110 @@
     const sameMac = remoteMac.length && deviceMac.length && remoteMac === deviceMac;
     const sameIp = remote.ip && device.ip && remote.ip === device.ip;
     return (sameMac || sameIp) && remoteId === inputId;
+  }
+
+  function formatUdpDeviceLabel(device) {
+    if (!device || typeof device !== 'object') {
+      return 'Module UDP';
+    }
+    const parts = [];
+    if (typeof device.ip === 'string' && device.ip.trim().length) {
+      parts.push(device.ip.trim());
+    }
+    if (typeof device.hostname === 'string' && device.hostname.trim().length) {
+      const host = device.hostname.trim();
+      if (!parts.includes(host)) {
+        parts.push(host);
+      }
+    } else if (typeof device.mac === 'string' && device.mac.trim().length) {
+      const mac = device.mac.trim();
+      if (!parts.includes(mac)) {
+        parts.push(mac);
+      }
+    }
+    if (!parts.length) {
+      return 'Module UDP';
+    }
+    return parts.join(' · ');
+  }
+
+  function buildUdpOptionLabel(device, input) {
+    const deviceLabel = formatUdpDeviceLabel(device);
+    let channelLabel = 'Entrée';
+    if (input && typeof input === 'object') {
+      if (typeof input.label === 'string' && input.label.trim().length) {
+        channelLabel = input.label.trim();
+      } else if (typeof input.id === 'string' && input.id.trim().length) {
+        channelLabel = input.id.trim();
+      } else if (typeof input.type === 'string' && input.type.trim().length) {
+        channelLabel = input.type.trim();
+      }
+    }
+    const unitSuffix = input && typeof input.unit === 'string' && input.unit.trim().length
+      ? ` (${input.unit.trim()})`
+      : '';
+    return `${deviceLabel} · ${channelLabel}${unitSuffix}`;
+  }
+
+  function getUdpOptionKey(deviceIndex, inputIndex) {
+    return `${deviceIndex}:${inputIndex}`;
+  }
+
+  function updateUdpAssignButtonState() {
+    const assignBtn = document.getElementById('udpAssignButton');
+    const select = document.getElementById('udpInputSelect');
+    if (!assignBtn || !select) return;
+    assignBtn.disabled = select.disabled || !udpOptionLookup.has(select.value);
+  }
+
+  function updateUdpSelectionOptions(devices, selectedRemote) {
+    const group = document.getElementById('udpSelectGroup');
+    const select = document.getElementById('udpInputSelect');
+    if (!group || !select) return;
+    udpOptionLookup.clear();
+    select.innerHTML = '';
+    let optionCount = 0;
+    let selectedKey = '';
+    if (Array.isArray(devices) && devices.length) {
+      devices.forEach((device, deviceIndex) => {
+        if (!device || typeof device !== 'object') return;
+        const inputs = Array.isArray(device.inputs) ? device.inputs : [];
+        inputs.forEach((input, inputIndex) => {
+          const key = getUdpOptionKey(deviceIndex, inputIndex);
+          udpOptionLookup.set(key, { device, input });
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = buildUdpOptionLabel(device, input);
+          if (!selectedKey && remoteMatchesSelection(selectedRemote, device, input)) {
+            selectedKey = key;
+          }
+          select.appendChild(option);
+          optionCount += 1;
+        });
+      });
+    }
+    if (optionCount === 0) {
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Aucune entrée distante détectée';
+      select.appendChild(placeholder);
+      select.disabled = true;
+      if (!group.hidden) {
+        group.hidden = true;
+      }
+      updateUdpAssignButtonState();
+      return;
+    }
+    select.disabled = false;
+    group.hidden = false;
+    suppressUdpSelectChange = true;
+    if (selectedKey) {
+      select.value = selectedKey;
+    } else if (select.options.length) {
+      select.selectedIndex = 0;
+    }
+    suppressUdpSelectChange = false;
+    updateUdpAssignButtonState();
   }
 
   function formatRemoteSummary(remote) {
@@ -999,8 +1146,114 @@
         });
       }
       card.appendChild(inputsWrap);
-      container.appendChild(card);
+    container.appendChild(card);
     });
+  }
+
+  function collectDeviceInputEndpoints(device, index) {
+    const endpoints = [];
+    const seen = new Set();
+    const directCandidates = [
+      device && device.inputs_url,
+      device && device.inputsUrl,
+      device && device.inputs_endpoint,
+      device && device.inputsEndpoint,
+      device && device.details_url,
+      device && device.detailsUrl
+    ];
+    directCandidates.forEach(url => {
+      if (typeof url === 'string' && url.trim().length) {
+        const trimmed = url.trim();
+        if (!seen.has(trimmed)) {
+          seen.add(trimmed);
+          endpoints.push(trimmed);
+        }
+      }
+    });
+    const fallbackTargets = [];
+    if (device && typeof device.id === 'string' && device.id.trim().length) {
+      fallbackTargets.push(device.id.trim());
+    }
+    if (device && typeof device.mac === 'string' && device.mac.trim().length) {
+      fallbackTargets.push(device.mac.trim());
+    }
+    if (device && typeof device.ip === 'string' && device.ip.trim().length) {
+      fallbackTargets.push(device.ip.trim());
+    }
+    if (!fallbackTargets.length) {
+      fallbackTargets.push(`device-${index}`);
+    }
+    const target = fallbackTargets[0];
+    if (target) {
+      const encoded = encodeURIComponent(target);
+      const fallbackPaths = [
+        `/api/udp/inputs?target=${encoded}`,
+        `/api/udp/discover/${encoded}/inputs`
+      ];
+      if (device && typeof device.ip === 'string' && device.ip.trim().length) {
+        const encodedIp = encodeURIComponent(device.ip.trim());
+        fallbackPaths.push(`/api/udp/inputs?ip=${encodedIp}`);
+      }
+      fallbackPaths.forEach(path => {
+        if (!seen.has(path)) {
+          seen.add(path);
+          endpoints.push(path);
+        }
+      });
+    }
+    return endpoints;
+  }
+
+  async function enrichUdpDevice(device, index) {
+    if (!device || typeof device !== 'object') {
+      return device;
+    }
+    if (Array.isArray(device.inputs) && device.inputs.length) {
+      return device;
+    }
+    const enriched = { ...device };
+    const endpoints = collectDeviceInputEndpoints(enriched, index);
+    if (!endpoints.length) {
+      return enriched;
+    }
+    let lastError = null;
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint);
+        if (!res.ok) {
+          lastError = new Error(`HTTP ${res.status}`);
+          continue;
+        }
+        const data = await res.json();
+        const inputs = Array.isArray(data)
+          ? data
+          : Array.isArray(data.inputs)
+          ? data.inputs
+          : [];
+        if (Array.isArray(inputs) && inputs.length) {
+          enriched.inputs = inputs;
+          logEvent(`Entrées UDP détectées pour ${formatUdpDeviceLabel(enriched)} (${inputs.length}).`, 'info');
+          return enriched;
+        }
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (lastError) {
+      const reason = lastError && lastError.message ? lastError.message : String(lastError);
+      logEvent(`Aucune entrée distante trouvée pour ${formatUdpDeviceLabel(enriched)} (${reason}).`, 'warn');
+    }
+    return enriched;
+  }
+
+  async function enrichUdpDevices(devices) {
+    if (!Array.isArray(devices) || !devices.length) {
+      return Array.isArray(devices) ? devices : [];
+    }
+    const enriched = await Promise.all(
+      devices.map((device, index) => enrichUdpDevice(device, index))
+    );
+    return enriched;
   }
 
   async function scanUdpDevices() {
@@ -1029,10 +1282,12 @@
           statusEl.textContent = `Modules détectés : ${udpScanResults.length}`;
         }
       }
+      udpScanResults = await enrichUdpDevices(udpScanResults);
       if (selectedRow) {
         updateUdpPanelContext(selectedRow);
       } else {
         renderUdpDevices(udpScanResults, null);
+        updateUdpSelectionOptions(udpScanResults, null);
       }
       if (udpScanResults.length) {
         logEvent(`Scan UDP terminé : ${udpScanResults.length} module(s) détecté(s).`, 'success');
@@ -1054,37 +1309,50 @@
     const panel = document.getElementById('udpInputPanel');
     const summaryEl = document.getElementById('udpSelectionSummary');
     const statusEl = document.getElementById('udpScanStatus');
+    const group = document.getElementById('udpSelectGroup');
     if (!panel) return;
     if (tr) {
       syncRemoteCell(tr);
     }
     if (!isUdpHardwareProfileSelected()) {
       panel.hidden = true;
+      if (group) {
+        group.hidden = true;
+      }
       if (summaryEl) {
         summaryEl.textContent = 'Sélectionnez le profil matériel « Entrée UDP personnalisée » pour configurer une source distante.';
       }
       if (statusEl && !udpScanInProgress) {
         statusEl.textContent = '';
       }
+      updateUdpAssignButtonState();
       return;
     }
     if (!tr) {
       panel.hidden = true;
+      if (group) {
+        group.hidden = true;
+      }
       if (summaryEl) {
         summaryEl.textContent = 'Sélectionnez une ligne de type « udp-in » pour configurer la source distante.';
       }
       if (statusEl && udpScanResults.length === 0 && !udpScanInProgress) {
         statusEl.textContent = '';
       }
+      updateUdpAssignButtonState();
       return;
     }
     const typeInput = tr.querySelector('td[data-field="type"] input');
     const typeValue = typeInput ? typeInput.value.trim().toLowerCase() : '';
     if (!isUdpPanelType(typeValue)) {
       panel.hidden = true;
+      if (group) {
+        group.hidden = true;
+      }
       if (summaryEl) {
         summaryEl.textContent = 'Sélectionnez une ligne de type « udp-in » pour configurer la source distante.';
       }
+      updateUdpAssignButtonState();
       return;
     }
     panel.hidden = false;
@@ -1098,6 +1366,7 @@
       statusEl.textContent = 'Aucun module détecté pour le moment.';
     }
     renderUdpDevices(udpScanResults, remote);
+    updateUdpSelectionOptions(udpScanResults, remote);
   }
 
   function applyRemoteSelection(tr, device, input) {
@@ -2048,7 +2317,47 @@
       scanUdpDevices();
     });
   }
+  const udpInputSelect = document.getElementById('udpInputSelect');
+  if (udpInputSelect) {
+    udpInputSelect.addEventListener('change', () => {
+      updateUdpAssignButtonState();
+      if (suppressUdpSelectChange) {
+        return;
+      }
+      if (!udpOptionLookup.has(udpInputSelect.value)) {
+        return;
+      }
+      if (!selectedRow) {
+        logEvent('Sélectionnez d’abord une ligne dans la table.', 'warn');
+        return;
+      }
+      const choice = udpOptionLookup.get(udpInputSelect.value);
+      if (choice) {
+        applyRemoteSelection(selectedRow, choice.device, choice.input);
+      }
+    });
+  }
+  const udpAssignButtonEl = document.getElementById('udpAssignButton');
+  if (udpAssignButtonEl) {
+    udpAssignButtonEl.addEventListener('click', () => {
+      const select = document.getElementById('udpInputSelect');
+      if (!select || !udpOptionLookup.has(select.value)) {
+        logEvent('Choisissez une entrée UDP distante dans la liste.', 'warn');
+        return;
+      }
+      if (!selectedRow) {
+        logEvent('Sélectionnez d’abord une ligne dans la table.', 'warn');
+        return;
+      }
+      const choice = udpOptionLookup.get(select.value);
+      if (choice) {
+        applyRemoteSelection(selectedRow, choice.device, choice.input);
+      }
+    });
+  }
   renderUdpDevices(udpScanResults, null);
+  updateUdpSelectionOptions(udpScanResults, null);
+  updateUdpAssignButtonState();
   updateUdpPanelContext(null);
 
   logEvent('Initialisation de la page IO...', 'info');
